@@ -8,6 +8,7 @@
 	import Boxes from '@lucide/svelte/icons/boxes';
 
 	const aboutHref = $derived<`/about`>('/about');
+	const interfacesHref = $derived<`/interfaces`>('/interfaces');
 	const bitcoinLogoSrc = asset('/bitcoin_logo.svg');
 
 	const features = [
@@ -89,10 +90,9 @@
 				<Button
 					size="lg"
 					class="w-full px-6 text-base transition-transform duration-200 hover:scale-105 sm:w-auto sm:px-8"
-					href="https://github.com/karliatto/contextbtc"
-					target="_blank"
+					href={resolve(interfacesHref)}
 				>
-					Get involved
+					Interfaces
 				</Button>
 				<Button
 					size="lg"
