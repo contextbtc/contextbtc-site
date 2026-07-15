@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { toast } from 'svelte-sonner';
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
@@ -64,6 +65,51 @@ export function formatRelativeTime(value: Date | string): string {
 }
 
 export const isEmptyObj = (obj: object) => Object.keys(obj).length === 0;
+
+/**
+ * Generate a hex color from a hexadecimal string pubkey
+ * Takes the first 6 characters and prepends '#' to create a valid hex color
+ */
+export function pubkeyToHexColor(pubkey: string): string {
+	if (!pubkey) {
+		throw new Error('Pubkey is required');
+	}
+
+	const hexColor = pubkey.slice(0, 6);
+
+	return `#${hexColor}`;
+}
+
+/**
+ * Copy data to clipboard
+ */
+export async function copyToClipboard(data: BlobPart, mimeType = 'text/plain') {
+	try {
+		// Always use text/plain for maximum compatibility
+		const textData = String(data);
+
+		if (navigator.clipboard.write) {
+			await navigator.clipboard.write([
+				new ClipboardItem({
+					[mimeType]: new Blob([textData], {
+						type: mimeType
+					}),
+					['text/plain']: new Blob([textData], {
+						type: 'text/plain'
+					})
+				})
+			]);
+		} else {
+			await new Promise((resolve) => {
+				resolve(navigator.clipboard.writeText(textData));
+			});
+		}
+		toast.success('Copied to clipboard');
+	} catch (e) {
+		toast.error(`Error: ${e}`);
+		console.log(e);
+	}
+}
 
 /**
  * Slugify a string

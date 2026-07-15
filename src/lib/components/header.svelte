@@ -6,6 +6,9 @@
 	import X from '@lucide/svelte/icons/x';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import ThemeToggle from './theme-toggle.svelte';
+	import AccountLoginDialog from './AccountLoginDialog.svelte';
+	import ProfileCard from './ProfileCard.svelte';
+	import { activeAccount } from '$lib/services/accountManager.svelte';
 
 	const homeHref = $derived<`/`>('/');
 	const aboutHref = $derived<`/about`>('/about');
@@ -46,8 +49,19 @@
 					aria-label="GitHub"
 				>
 					<Github class="h-4 w-4" />
-				</a>
-			</nav>
+			</a>
+		</nav>
+			<div class="flex items-center gap-2 sm:gap-4">
+				{#if $activeAccount}
+					<div class="hidden items-center gap-2 sm:flex sm:gap-3">
+						<ProfileCard pubkey={$activeAccount.pubkey} mode="compact" showLogout={true} />
+					</div>
+				{:else}
+					<div class="hidden sm:block">
+						<AccountLoginDialog />
+					</div>
+				{/if}
+			</div>
 			<div class="flex items-center space-x-2">
 				<ThemeToggle />
 			</div>
@@ -108,6 +122,13 @@
 					GitHub
 				</a>
 			</nav>
+			<div class="mt-6 border-t px-4 pt-6">
+				{#if $activeAccount}
+					<ProfileCard pubkey={$activeAccount.pubkey} mode="compact" showLogout={true} />
+				{:else}
+					<AccountLoginDialog />
+				{/if}
+			</div>
 		</div>
 	{/if}
 </header>
