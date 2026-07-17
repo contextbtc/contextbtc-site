@@ -8,27 +8,24 @@
 	import Boxes from '@lucide/svelte/icons/boxes';
 
 	const aboutHref = $derived<`/about`>('/about');
-	const interfacesHref = $derived<`/interfaces`>('/interfaces');
+	const walletHref = $derived<`/wallet`>('/wallet');
 	const bitcoinLogoSrc = asset('/bitcoin_logo.svg');
 
 	const features = [
 		{
 			icon: Zap,
 			title: 'Lightning fast',
-			description:
-				'Lightning fast performance with a focus on minimalism and simplicity.'
+			description: 'Lightning fast performance with a focus on minimalism and simplicity.'
 		},
 		{
 			icon: ShieldCheck,
 			title: 'Run your own node',
-			description:
-				'Run your own node with your own rules.'
+			description: 'Run your own node with your own rules.'
 		},
 		{
 			icon: Boxes,
 			title: 'Build your own tools',
-			description:
-				'Build your own tools with your own rules.'
+			description: 'Build your own tools with your own rules.'
 		}
 	];
 </script>
@@ -69,7 +66,6 @@
 		</div>
 
 		<div class="animate-fade-in-up z-10 mx-auto max-w-4xl px-4 text-center sm:px-0">
-
 			<h1 class="mb-4 text-4xl font-bold tracking-tight sm:mb-6 sm:text-5xl lg:text-7xl">
 				Context<span class="text-[#f7931a]">BTC</span>
 			</h1>
@@ -77,7 +73,12 @@
 			<p
 				class="mx-auto mb-6 max-w-2xl px-4 text-base leading-relaxed text-muted-foreground sm:mb-8 sm:px-0 sm:text-lg"
 			>
-				Infrastructure tools for the Bitcoin ecosystem on top of <a href="https://github.com/contextvm" target="_blank" rel="noopener noreferrer" class="text-muted-foreground transition-colors hover:text-foreground">ContextVM</a>.
+				Infrastructure tools for the Bitcoin ecosystem on top of <a
+					href="https://github.com/contextvm"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="text-muted-foreground transition-colors hover:text-foreground">ContextVM</a
+				>.
 			</p>
 
 			<p class="mx-auto mb-6 max-w-2xl px-4 text-lg font-semibold text-foreground sm:mb-8 sm:px-0">
@@ -90,9 +91,9 @@
 				<Button
 					size="lg"
 					class="w-full px-6 text-base transition-transform duration-200 hover:scale-105 sm:w-auto sm:px-8"
-					href={resolve(interfacesHref)}
+					href={resolve(walletHref)}
 				>
-					Interfaces
+					Experimental POC Wallet
 				</Button>
 				<Button
 					size="lg"
@@ -100,44 +101,44 @@
 					class="w-full px-6 text-base transition-transform duration-200 hover:scale-105 sm:w-auto sm:px-8"
 					href={resolve(aboutHref)}
 				>
-					Learn more
+					About ContextBTC
 				</Button>
 			</div>
 		</div>
 	</section>
 
-	<!-- Features Section -->
-	<section class="border-t py-12 sm:py-16">
-		<div class="container mx-auto px-4">
-			<div class="mx-auto max-w-6xl">
-				<div class="mb-8 text-center sm:mb-12">
-					<h2
-						class="mb-3 px-4 text-2xl font-bold tracking-tight sm:mb-4 sm:px-0 sm:text-3xl lg:text-4xl"
-					>
-						Everything you need to start
-					</h2>
-					<p class="px-4 text-base text-muted-foreground sm:px-0 sm:text-lg">
-						A batteries-included foundation with sensible defaults.
-					</p>
-				</div>
+	Features Section
+	<!-- <section class="border-t py-12 sm:py-16"> -->
+	<!-- <div class="container mx-auto px-4"> -->
+	<!-- <div class="mx-auto max-w-6xl"> -->
+	<!-- <div class="mb-8 text-center sm:mb-12"> -->
+	<!-- <h2 -->
+	<!-- // class="mb-3 px-4 text-2xl font-bold tracking-tight sm:mb-4 sm:px-0 sm:text-3xl lg:text-4xl" -->
+	<!-- // > -->
+	<!-- Everything you need to start -->
+	<!-- </h2> -->
+	<!-- <p class="px-4 text-base text-muted-foreground sm:px-0 sm:text-lg"> -->
+	<!-- A batteries-included foundation with sensible defaults. -->
+	<!-- </p> -->
+	<!-- </div> -->
 
-				<div class="grid grid-cols-1 gap-6 md:grid-cols-3">
-					{#each features as feature (feature.title)}
-						{@const Icon = feature.icon}
-						<Card.Root>
-							<Card.Header>
-								<div
-									class="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary"
-								>
-									<Icon class="size-5" />
-								</div>
-								<Card.Title>{feature.title}</Card.Title>
-								<Card.Description>{feature.description}</Card.Description>
-							</Card.Header>
-						</Card.Root>
-					{/each}
-				</div>
-			</div>
-		</div>
-	</section>
+	<!-- <div class="grid grid-cols-1 gap-6 md:grid-cols-3"> -->
+	<!-- {#each features as feature (feature.title)} -->
+	<!-- {@const Icon = feature.icon} -->
+	<!-- <Card.Root> -->
+	<!-- <Card.Header> -->
+	<!-- <div -->
+	<!-- // class="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary" -->
+	<!-- // > -->
+	<!-- <Icon class="size-5" /> -->
+	<!-- </div> -->
+	<!-- <Card.Title>{feature.title}</Card.Title> -->
+	<!-- <Card.Description>{feature.description}</Card.Description> -->
+	<!-- </Card.Header> -->
+	<!-- </Card.Root> -->
+	<!-- {/each} -->
+	<!-- </div> -->
+	<!-- </div> -->
+	<!-- </div> -->
+	<!-- </section> -->
 </main>

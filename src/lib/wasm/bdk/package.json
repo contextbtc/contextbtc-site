@@ -1,0 +1,16 @@
+{
+	"name": "wallet-wasm",
+	"type": "module",
+	"description": "BDK wallet compiled to WASM for the ContextBTC site (JS-driven bitcoind RPC sync)",
+	"version": "0.1.0",
+	"files": [
+		"bdk_bg.wasm",
+		"bdk.js",
+		"bdk.d.ts"
+	],
+	"main": "bdk.js",
+	"types": "bdk.d.ts",
+	"sideEffects": [
+		"./snippets/*"
+	]
+}

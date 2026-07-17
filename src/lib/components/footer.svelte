@@ -4,7 +4,6 @@
 	import Mail from '@lucide/svelte/icons/mail';
 	const homeHref = $derived<`/`>('/');
 
-
 	const aboutHref = $derived<`/about`>('/about');
 	const logoBlackSrc = asset('/logo-black.svg');
 	const logoWhiteSrc = asset('/logo-white.svg');
@@ -16,15 +15,21 @@
 			<!-- Brand Section -->
 			<div class="space-y-4">
 				<a
-				href={resolve(homeHref)}
-				class="flex items-center transition-transform duration-200 hover:scale-105"
-			>
-				<span class="text-xl font-bold tracking-tight sm:text-2xl">
-					Context<span class="text-[#f7931a]">BTC</span>
-				</span>
-			</a>
-					<p class="text-sm text-muted-foreground">
-					A project with the goal of building infrastructure tools for the Bitcoin ecosystem on top of <a href="https://github.com/contextvm" target="_blank" rel="noopener noreferrer" class="text-muted-foreground transition-colors hover:text-foreground">ContextVM</a>.
+					href={resolve(homeHref)}
+					class="flex items-center transition-transform duration-200 hover:scale-105"
+				>
+					<span class="text-xl font-bold tracking-tight sm:text-2xl">
+						Context<span class="text-[#f7931a]">BTC</span>
+					</span>
+				</a>
+				<p class="text-sm text-muted-foreground">
+					A project with the goal of building infrastructure tools for the Bitcoin ecosystem on top
+					of <a
+						href="https://github.com/contextvm"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="text-muted-foreground transition-colors hover:text-foreground">ContextVM</a
+					>.
 				</p>
 				<div class="flex items-center space-x-4">
 					<a
@@ -63,14 +68,14 @@
 			<div class="space-y-4">
 				<h3 class="text-sm font-semibold">Resources</h3>
 				<nav class="flex flex-col space-y-2">
-					<a
+					<!-- <a
 						href="https://github.com/karliatto/contextbtc"
 						target="_blank"
 						rel="noopener noreferrer"
 						class="text-sm text-muted-foreground transition-colors hover:text-foreground"
 					>
 						GitHub Organization
-					</a>
+					</a> -->
 					<a
 						href="mailto:karliatto@protonmail.com"
 						class="text-sm text-muted-foreground transition-colors hover:text-foreground"

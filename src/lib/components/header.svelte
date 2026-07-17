@@ -12,7 +12,7 @@
 
 	const homeHref = $derived<`/`>('/');
 	const aboutHref = $derived<`/about`>('/about');
-	const interfacesHref = $derived<`/interfaces`>('/interfaces');
+	const walletHref = $derived<`/wallet`>('/wallet');
 
 	let isMenuOpen = $state(false);
 </script>
@@ -35,12 +35,12 @@
 		<div class="hidden items-center space-x-4 sm:flex sm:space-x-6">
 			<nav class="flex items-center space-x-4 text-sm font-medium sm:space-x-6">
 				<a
-					href={resolve(interfacesHref)}
-					class="transition-colors {$page.url.pathname.startsWith(resolve(interfacesHref))
+					href={resolve(walletHref)}
+					class="transition-colors {$page.url.pathname.startsWith(resolve(walletHref))
 						? 'font-semibold text-primary'
 						: 'text-foreground/60 hover:text-primary'}"
 				>
-					Interfaces
+					Experimental POC Wallet
 				</a>
 				<a
 					href={resolve(aboutHref)}
@@ -58,8 +58,8 @@
 					aria-label="GitHub"
 				>
 					<Github class="h-4 w-4" />
-			</a>
-		</nav>
+				</a>
+			</nav>
 			<div class="flex items-center gap-2 sm:gap-4">
 				{#if $activeAccount}
 					<div class="hidden items-center gap-2 sm:flex sm:gap-3">
@@ -99,12 +99,12 @@
 		<div class="border-t bg-background/95 backdrop-blur sm:hidden">
 			<nav class="flex flex-col space-y-1 px-4 py-4">
 				<a
-					href={resolve(interfacesHref)}
-					class="transition-colors {$page.url.pathname.startsWith(resolve(interfacesHref))
+					href={resolve(walletHref)}
+					class="transition-colors {$page.url.pathname.startsWith(resolve(walletHref))
 						? 'font-semibold text-primary'
 						: 'text-foreground/60 hover:text-primary'}"
 				>
-					Interfaces
+					Experimental POC Wallet
 				</a>
 				<a
 					href={resolve(aboutHref)}

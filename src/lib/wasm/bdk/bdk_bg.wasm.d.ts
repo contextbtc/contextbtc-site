@@ -1,0 +1,50 @@
+/* tslint:disable */
+/* eslint-disable */
+export const memory: WebAssembly.Memory;
+export const __wbg_walletwrapper_free: (a: number, b: number) => void;
+export const walletwrapper_apply_block: (
+	a: number,
+	b: number,
+	c: number,
+	d: number,
+	e: number,
+	f: number,
+	g: number
+) => [number, number];
+export const walletwrapper_balance: (a: number) => bigint;
+export const walletwrapper_load: (
+	a: number,
+	b: number,
+	c: number,
+	d: number,
+	e: number,
+	f: number
+) => [number, number, number];
+export const walletwrapper_new: (
+	a: number,
+	b: number,
+	c: number,
+	d: number,
+	e: number,
+	f: number
+) => [number, number, number];
+export const walletwrapper_peek_address: (a: number, b: number) => [number, number];
+export const walletwrapper_reveal_next_address: (a: number) => [number, number];
+export const walletwrapper_take_merged: (
+	a: number,
+	b: number,
+	c: number
+) => [number, number, number, number];
+export const walletwrapper_take_staged: (a: number) => [number, number, number, number];
+export const walletwrapper_tip_hash: (a: number) => [number, number];
+export const walletwrapper_tip_height: (a: number) => number;
+export const rustsecp256k1_v0_10_0_context_create: (a: number) => number;
+export const rustsecp256k1_v0_10_0_context_destroy: (a: number) => void;
+export const rustsecp256k1_v0_10_0_default_error_callback_fn: (a: number, b: number) => void;
+export const rustsecp256k1_v0_10_0_default_illegal_callback_fn: (a: number, b: number) => void;
+export const __wbindgen_free: (a: number, b: number, c: number) => void;
+export const __wbindgen_malloc: (a: number, b: number) => number;
+export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+export const __wbindgen_externrefs: WebAssembly.Table;
+export const __externref_table_dealloc: (a: number) => void;
+export const __wbindgen_start: () => void;
