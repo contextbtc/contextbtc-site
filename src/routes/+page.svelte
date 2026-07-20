@@ -107,7 +107,7 @@
 		</div>
 	</section>
 
-	Features Section
+	<!-- Features Section -->
 	<!-- <section class="border-t py-12 sm:py-16"> -->
 	<!-- <div class="container mx-auto px-4"> -->
 	<!-- <div class="mx-auto max-w-6xl"> -->

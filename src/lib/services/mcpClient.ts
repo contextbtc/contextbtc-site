@@ -26,7 +26,8 @@ export async function listServerTools(serverPubkey: string): Promise<McpTool[]> 
 		signer,
 		serverPubkey,
 		discoveryRelayUrls: commonRelays,
-		fallbackOperationalRelayUrls: commonRelays
+		fallbackOperationalRelayUrls: commonRelays,
+		isStateless: true
 	});
 
 	const client = new Client(CLIENT_CONFIG);
