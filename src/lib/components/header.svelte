@@ -13,6 +13,7 @@
 	const homeHref = $derived<`/`>('/');
 	const aboutHref = $derived<`/about`>('/about');
 	const walletHref = $derived<`/wallet`>('/wallet');
+	const chatHref = $derived<`/chat`>('/chat');
 
 	let isMenuOpen = $state(false);
 </script>
@@ -34,6 +35,14 @@
 		<!-- Desktop Navigation -->
 		<div class="hidden items-center space-x-4 sm:flex sm:space-x-6">
 			<nav class="flex items-center space-x-4 text-sm font-medium sm:space-x-6">
+				<a
+					href={resolve(chatHref)}
+					class="transition-colors {$page.url.pathname.startsWith(resolve(chatHref))
+						? 'font-semibold text-primary'
+						: 'text-foreground/60 hover:text-primary'}"
+				>
+					Experimental Chat with Bitcoin Core
+				</a>
 				<a
 					href={resolve(walletHref)}
 					class="transition-colors {$page.url.pathname.startsWith(resolve(walletHref))
@@ -98,6 +107,17 @@
 	{#if isMenuOpen}
 		<div class="border-t bg-background/95 backdrop-blur sm:hidden">
 			<nav class="flex flex-col space-y-1 px-4 py-4">
+				<a
+					href={resolve(chatHref)}
+					onclick={() => (isMenuOpen = false)}
+					class="rounded-md px-4 py-3 text-base font-medium transition-colors {$page.url.pathname.startsWith(
+						resolve(chatHref)
+					)
+						? 'bg-primary/10 text-primary'
+						: 'text-foreground/80 hover:bg-accent hover:text-foreground'}"
+				>
+					Chat
+				</a>
 				<a
 					href={resolve(walletHref)}
 					class="transition-colors {$page.url.pathname.startsWith(resolve(walletHref))

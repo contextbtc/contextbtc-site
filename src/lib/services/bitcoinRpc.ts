@@ -1,6 +1,7 @@
 import { NostrClientTransport, PrivateKeySigner } from '@contextvm/sdk';
 import { Client } from '@contextvm/mcp-sdk/client/index.js';
 import type { CallToolResult } from '@contextvm/mcp-sdk/types.js';
+import { commonRelays } from './relay-pool';
 
 /**
  * Bitcoin Core JSON-RPC client that talks to a ContextVM MCP server over Nostr.
@@ -11,7 +12,6 @@ import type { CallToolResult } from '@contextvm/mcp-sdk/types.js';
  * Rust `bitcoincore_rpc` client cannot run in the browser (Tokio/native only).
  */
 
-export const DEFAULT_RELAYS = ['wss://relay.contextvm.org'];
 export const DEFAULT_SERVER_PUBKEY =
 	'7807ffe23010b8961a1e1aecb1cbf82b58e7cf99401cbb7874b73e21b1b12629';
 
@@ -34,7 +34,7 @@ export class BitcoinRpc {
 
 	constructor(
 		private readonly serverPubkey: string = DEFAULT_SERVER_PUBKEY,
-		private readonly relays: string[] = DEFAULT_RELAYS
+		private readonly relays: string[] = commonRelays
 	) {}
 
 	async connect(): Promise<void> {

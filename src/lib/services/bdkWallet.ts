@@ -1,7 +1,8 @@
 import { browser } from '$app/environment';
 import init, { WalletWrapper } from '$lib/wasm/bdk/bdk';
 import bdkWasmUrl from '$lib/wasm/bdk/bdk_bg.wasm?url';
-import { BitcoinRpc, DEFAULT_RELAYS, DEFAULT_SERVER_PUBKEY } from './bitcoinRpc';
+import { BitcoinRpc, DEFAULT_SERVER_PUBKEY } from './bitcoinRpc';
+import { commonRelays } from './relay-pool';
 
 /**
  * BDK WASM wallet service driven by bitcoind RPC over ContextVM (MCP-over-Nostr).
@@ -13,7 +14,7 @@ import { BitcoinRpc, DEFAULT_RELAYS, DEFAULT_SERVER_PUBKEY } from './bitcoinRpc'
  */
 
 export const NETWORK = 'regtest';
-export const RELAYS = DEFAULT_RELAYS;
+export const RELAYS = commonRelays;
 export const SERVER_PUBKEY = DEFAULT_SERVER_PUBKEY;
 
 export const EXTERNAL_DESCRIPTOR =
