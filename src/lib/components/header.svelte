@@ -60,7 +60,7 @@
 					About
 				</a>
 				<a
-					href="https://github.com/karliatto/contextbtc"
+					href="https://github.com/contextbtc/contextbtc-sdk"
 					target="_blank"
 					rel="noopener noreferrer"
 					class="text-foreground/60 transition-colors hover:text-primary"
@@ -138,7 +138,7 @@
 					About
 				</a>
 				<a
-					href="https://github.com/karliatto/contextbtc"
+					href="https://github.com/contextbtc"
 					target="_blank"
 					rel="noopener noreferrer"
 					onclick={() => (isMenuOpen = false)}
@@ -148,7 +148,7 @@
 					<ExternalLink class="h-3 w-3 text-muted-foreground" />
 				</a>
 				<a
-					href="https://github.com/karliatto/contextbtc"
+					href="https://github.com/contextbtc"
 					target="_blank"
 					rel="noopener noreferrer"
 					onclick={() => (isMenuOpen = false)}

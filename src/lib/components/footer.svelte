@@ -33,7 +33,7 @@
 				</p>
 				<div class="flex items-center space-x-4">
 					<a
-						href="https://github.com/karliatto/contextbtc"
+						href="https://github.com/contextbtc"
 						target="_blank"
 						rel="noopener noreferrer"
 						class="text-muted-foreground transition-colors hover:text-foreground"
@@ -68,14 +68,14 @@
 			<div class="space-y-4">
 				<h3 class="text-sm font-semibold">Resources</h3>
 				<nav class="flex flex-col space-y-2">
-					<!-- <a
-						href="https://github.com/karliatto/contextbtc"
+					<a
+						href="https://github.com/contextbtc"
 						target="_blank"
 						rel="noopener noreferrer"
 						class="text-sm text-muted-foreground transition-colors hover:text-foreground"
 					>
 						GitHub Organization
-					</a> -->
+					</a>
 					<a
 						href="mailto:karliatto@protonmail.com"
 						class="text-sm text-muted-foreground transition-colors hover:text-foreground"

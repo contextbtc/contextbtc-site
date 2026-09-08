@@ -12,7 +12,7 @@ import { commonRelays } from './relay-pool';
 export const CHAT_SERVER = {
 	label: 'ContextBTC Bitcoin node',
 	pubkey: import.meta.env.BITCOINCORE_SERVER_PUBKEY?.trim() || DEFAULT_SERVER_PUBKEY,
-	relays: commonRelays,
+	relays: commonRelays
 } as const;
 
 const CLIENT_CONFIG = {
