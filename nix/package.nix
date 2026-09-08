@@ -63,7 +63,7 @@ let
     outputHashAlgo = "sha256";
     # Update whenever bun.lock changes: set to lib.fakeHash, rebuild, copy the
     # "got:" hash Nix reports.
-    outputHash = "sha256-FWLTI6NM+Dou+4bsBxupZFMLNXrIxpgB0jpBRhSW/h8=";
+    outputHash = "sha256-pPBmAnbnm1Y0vt4d1cc0qzv6l8VTCUKG5WbcFTX4chg=";
   };
 in
 stdenvNoCC.mkDerivation {
