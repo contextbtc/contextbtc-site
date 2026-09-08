@@ -41,7 +41,7 @@
 						? 'font-semibold text-primary'
 						: 'text-foreground/60 hover:text-primary'}"
 				>
-					Experimental Chat with Bitcoin Core
+					Chat with Bitcoin Core
 				</a>
 				<a
 					href={resolve(walletHref)}
