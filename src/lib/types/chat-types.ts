@@ -69,16 +69,15 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
 ];
 
 /**
- * Optional build-time key so a deployment can ship a working demo. Users are
- * otherwise expected to bring their own; the key never leaves the browser
- * beyond the configured provider.
+ * Users bring their own key via the chat's "Model" dialog. It is kept in their
+ * browser's localStorage and never leaves it beyond the configured provider,
+ * so there is deliberately no build-time default: this is a static site, and a
+ * bundled key would be readable by every visitor.
  */
-const ENV_OPENROUTER_KEY = (import.meta.env.OPENROUTER_KEY ?? '').trim();
-
 export const DEFAULT_LLM_CONFIG: LLMConfig = {
 	provider: 'openrouter',
 	baseURL: 'https://openrouter.ai/api/v1',
-	apiKey: ENV_OPENROUTER_KEY,
+	apiKey: '',
 	model: 'auto'
 };
 
