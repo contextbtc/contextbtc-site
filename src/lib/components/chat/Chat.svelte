@@ -248,7 +248,7 @@
 					</span>
 					<span class="min-w-0 flex-1">
 						<span class="block truncate text-sm font-medium">
-							{chatMcpServer.serverName ?? CHAT_SERVER.label}
+							{CHAT_SERVER.label ?? chatMcpServer.serverName}
 						</span>
 						<span class="block truncate font-mono text-[10px] text-muted-foreground">
 							{CHAT_SERVER.pubkey.slice(0, 16)}…

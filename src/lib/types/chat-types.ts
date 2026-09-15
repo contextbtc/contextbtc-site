@@ -37,6 +37,12 @@ export interface ProviderPreset {
 
 export const PROVIDER_PRESETS: ProviderPreset[] = [
 	{
+		key: 'routstr',
+		label: 'Routstr',
+		baseURL: 'https://routstr1.purpleprometheus.com/v1',
+		requiresKey: true
+	},
+	{
 		key: 'openrouter',
 		label: 'OpenRouter',
 		baseURL: 'https://openrouter.ai/api/v1',
