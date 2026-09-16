@@ -40,6 +40,28 @@ function getPricing(baseURL: string): Promise<Map<string, SatsPricing>> {
 	return pricing;
 }
 
+const mintsCache = new Map<string, Promise<string[] | undefined>>();
+
+/**
+ * The mints a node accepts tokens from, per its `/info` endpoint. `undefined` when
+ * the node doesn't say, in which case paying is attempted anyway.
+ */
+function getAcceptedMints(baseURL: string): Promise<string[] | undefined> {
+	let mints = mintsCache.get(baseURL);
+	if (!mints) {
+		mints = fetch(`${baseURL}/info`)
+			.then((response) => (response.ok ? response.json() : {}))
+			.then((body: { mints?: unknown }) =>
+				Array.isArray(body.mints) && body.mints.length > 0
+					? body.mints.filter((mint): mint is string => typeof mint === 'string')
+					: undefined
+			);
+		mints.catch(() => mintsCache.delete(baseURL));
+		mintsCache.set(baseURL, mints);
+	}
+	return mints;
+}
+
 /** Mirrors routstr-core's estimate (~3 chars/token over the whole body) with a 10% margin. */
 function estimateSats(pricing: SatsPricing | undefined, body: Record<string, unknown>): number {
 	if (!pricing) {
@@ -87,11 +109,16 @@ export function createRoutstrFetch(
 		body.max_tokens ??= ROUTSTR_MAX_TOKENS;
 		const payload = JSON.stringify(body);
 
-		const pricing = (await getPricing(baseURL).catch(() => undefined))?.get(String(body.model));
+		const [pricing, acceptedMints] = await Promise.all([
+			getPricing(baseURL)
+				.then((models) => models.get(String(body.model)))
+				.catch(() => undefined),
+			getAcceptedMints(baseURL).catch(() => undefined)
+		]);
 		let sats = estimateSats(pricing, body);
 
 		for (let attempt = 0; ; attempt += 1) {
-			const response = await payAndSend(url, init, headers, payload, sats);
+			const response = await payAndSend(url, init, headers, payload, sats, acceptedMints);
 			const synthetic = response.headers.get('x-should-retry') === 'false';
 			if (response.status !== 402 || synthetic || response.headers.has('x-cashu') || attempt > 0) {
 				return response;
@@ -111,11 +138,12 @@ async function payAndSend(
 	init: RequestInit | undefined,
 	baseHeaders: Headers,
 	payload: string,
-	sats: number
+	sats: number,
+	acceptedMints: string[] | undefined
 ): Promise<Response> {
 	let pending;
 	try {
-		pending = await cashuWallet.createToken(sats);
+		pending = await cashuWallet.createToken(sats, acceptedMints);
 	} catch (error) {
 		return walletErrorResponse(error);
 	}
@@ -126,7 +154,7 @@ async function payAndSend(
 	try {
 		response = await fetch(url, { ...init, headers, body: payload });
 	} catch (error) {
-		await reclaim(pending.id);
+		await reclaim(pending.id, pending.amount);
 		throw error;
 	}
 
@@ -145,8 +173,8 @@ async function payAndSend(
 	} else if (response.ok) {
 		cashuWallet.settleSend(pending.id);
 	} else {
-		// No refund header on an error means the token was most likely never redeemed.
-		await reclaim(pending.id);
+		// No refund header on an error: reclaim checks with the mint whether it was redeemed.
+		await reclaim(pending.id, pending.amount);
 	}
 
 	return response;
@@ -166,12 +194,17 @@ function walletErrorResponse(error: unknown): Response {
 	});
 }
 
-async function reclaim(id: string): Promise<void> {
+async function reclaim(id: string, amount: number): Promise<void> {
 	try {
 		await cashuWallet.reclaimSend(id);
 	} catch (error) {
-		// Stays in pendingSends; the wallet retries on next load.
+		// Stays in pendingSends; the wallet retries on next load and offers "Recover".
 		console.warn('Failed to reclaim Cashu token:', error);
+		toast.error(`${amount.toLocaleString()} sats are pending recovery`, {
+			description: `The payment failed and the token could not be taken back yet (${
+				error instanceof Error ? error.message : 'unknown error'
+			}). Use "Recover" in the wallet.`
+		});
 	}
 }
 

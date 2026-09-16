@@ -33,16 +33,25 @@ export interface PendingQuote {
 }
 
 /**
- * A token handed to a provider whose outcome is not known yet. If the page dies
- * mid-request, `init()` tries to receive it back so the sats aren't stranded.
+ * A token that has left the wallet but whose recipient hasn't redeemed it yet.
+ *
+ * - `provider`: handed to a provider mid-request. If the request fails or the page
+ *   dies, `init()` receives it back so the sats aren't stranded.
+ * - `export`: shown to the user to give away. Never reclaimed automatically; it is
+ *   dropped once the mint reports it spent, or when the user reclaims it.
  */
 export interface PendingSend {
 	id: string;
+	kind: 'provider' | 'export';
 	mintUrl: string;
 	token: string;
+	/** The proofs inside `token`, so their state can be checked without decoding it. */
+	proofs: StoredProof[];
 	amount: number;
 	createdAt: number;
 }
+
+type SendState = 'unspent' | 'spent' | 'pending';
 
 /** What paying a given invoice costs, before the user confirms it. */
 export interface WithdrawalQuote {
@@ -72,6 +81,23 @@ export class InsufficientFundsError extends Error {
 	) {
 		super(`${INSUFFICIENT_FUNDS_TEXT} (need ~${required}, have ${available}).`);
 		this.name = 'InsufficientFundsError';
+	}
+}
+
+function mintHosts(urls: string[]): string {
+	return urls.map((url) => url.replace(/^https?:\/\//, '')).join(', ') || 'none';
+}
+
+/** None of the mints a provider accepts holds enough sats in this wallet. */
+export class UnacceptedMintError extends Error {
+	constructor(
+		public readonly acceptedMints: string[],
+		public readonly heldMints: string[]
+	) {
+		super(
+			`This provider only accepts ecash from ${mintHosts(acceptedMints)}, but your sats are at ${mintHosts(heldMints)}. No sats were spent.`
+		);
+		this.name = 'UnacceptedMintError';
 	}
 }
 
@@ -139,6 +165,18 @@ class CashuWalletService {
 
 	get balance(): number {
 		return Object.values(this.state.proofsByMint).reduce((total, proofs) => total + sum(proofs), 0);
+	}
+
+	/** Sats in provider tokens whose outcome isn't settled yet (recoverable via `reclaimAll`). */
+	get pendingBalance(): number {
+		return sum(this.state.pendingSends.filter((send) => send.kind !== 'export'));
+	}
+
+	/** Exported tokens nobody has redeemed yet, newest first. */
+	get exportedTokens(): PendingSend[] {
+		return this.state.pendingSends
+			.filter((send) => send.kind === 'export')
+			.sort((a, b) => b.createdAt - a.createdAt);
 	}
 
 	get mintUrl(): string {
@@ -236,11 +274,22 @@ class CashuWalletService {
 	/**
 	 * Splits off a token worth `amount` sats. The token is recorded as a pending
 	 * send until `settleSend` or `reclaimSend` is called.
+	 *
+	 * With `acceptedMints`, only those mints are spent from, so a provider is never
+	 * handed a token it will reject.
 	 */
-	createToken(amount: number): Promise<PendingSend> {
+	createToken(
+		amount: number,
+		acceptedMints?: string[],
+		kind: PendingSend['kind'] = 'provider'
+	): Promise<PendingSend> {
 		return this.withLock(async () => {
-			const mintUrl = this.pickMintFor(amount);
+			const accepted = acceptedMints?.map(normalizeMintUrl);
+			const mintUrl = this.pickMintFor(amount, accepted);
 			if (!mintUrl) {
+				if (accepted && this.pickMintFor(amount)) {
+					throw new UnacceptedMintError(accepted, this.fundedMints());
+				}
 				throw new InsufficientFundsError(amount, this.balance);
 			}
 
@@ -263,11 +312,14 @@ class CashuWalletService {
 				sendProofs = await this.sendFromMint(wallet, mintUrl, amount);
 			}
 
+			const proofs = toStored(sendProofs);
 			const pending: PendingSend = {
 				id: crypto.randomUUID(),
+				kind,
 				mintUrl,
 				token: getEncodedToken({ mint: mintUrl, proofs: sendProofs, unit: 'sat' }),
-				amount: sum(toStored(sendProofs)),
+				proofs,
+				amount: sum(proofs),
 				createdAt: Date.now()
 			};
 			this.state.pendingSends = [...this.state.pendingSends, pending];
@@ -282,14 +334,45 @@ class CashuWalletService {
 	}
 
 	/**
-	 * Hands `amount` sats out of the wallet as an ecash token. Unlike `createToken`
-	 * this is final: the sats are gone from the wallet as soon as the token exists,
-	 * so the caller must show it to the user.
+	 * Hands `amount` sats out of the wallet as an ecash token. The token stays in
+	 * `exportedTokens` until the mint reports it redeemed (`refreshExports`) or the
+	 * user takes it back (`reclaimSend`).
 	 */
 	async exportToken(amount: number): Promise<string> {
-		const pending = await this.createToken(amount);
-		this.settleSend(pending.id);
+		const pending = await this.createToken(amount, undefined, 'export');
 		return pending.token;
+	}
+
+	/** Drops exported tokens the recipient has redeemed. Never reclaims anything. */
+	refreshExports(): Promise<void> {
+		return this.withLock(async () => {
+			for (const pending of this.state.pendingSends.filter((send) => send.kind === 'export')) {
+				try {
+					if ((await this.sendState(pending)) === 'spent') {
+						this.settleSend(pending.id);
+					}
+				} catch (error) {
+					console.warn('Could not check exported Cashu token:', error);
+				}
+			}
+		});
+	}
+
+	/** Reclaims every unsettled provider token. Returns the sats recovered; throws if any is still stuck. */
+	async reclaimAll(): Promise<number> {
+		let recovered = 0;
+		let lastError: unknown = null;
+		for (const pending of this.state.pendingSends.filter((send) => send.kind !== 'export')) {
+			try {
+				recovered += await this.reclaimSend(pending.id);
+			} catch (error) {
+				lastError = error;
+			}
+		}
+		if (lastError) {
+			throw lastError;
+		}
+		return recovered;
 	}
 
 	/**
@@ -347,9 +430,10 @@ class CashuWalletService {
 	}
 
 	/**
-	 * Tries to take an unredeemed token back. A spent token means the provider
-	 * redeemed it, so the pending entry is dropped either way — except when the
-	 * mint is unreachable, in which case it's kept for the next attempt.
+	 * Tries to take an unredeemed token back. The mint's proof states decide the
+	 * outcome: spent means the recipient redeemed it and the entry is dropped;
+	 * unspent is received back; anything else (in-flight proofs, unreachable mint,
+	 * a failed swap) keeps the entry for a later attempt.
 	 */
 	reclaimSend(id: string): Promise<number> {
 		return this.withLock(async () => {
@@ -358,14 +442,20 @@ class CashuWalletService {
 				return 0;
 			}
 			try {
+				const state = await this.sendState(pending);
+				if (state === 'spent') {
+					this.settleSend(id);
+					return 0;
+				}
+				if (state === 'pending') {
+					throw new Error(
+						'The mint reports this token as in use. Try recovering it again in a minute.'
+					);
+				}
 				const received = await this.receiveUnlocked(pending.token);
 				this.settleSend(id);
 				return received;
 			} catch (error) {
-				if (isSpentError(error)) {
-					this.settleSend(id);
-					return 0;
-				}
 				throw describeMintError(pending.mintUrl, error);
 			}
 		});
@@ -378,7 +468,12 @@ class CashuWalletService {
 				const saved = JSON.parse(raw) as Partial<WalletState>;
 				this.state.proofsByMint = saved.proofsByMint ?? {};
 				this.state.pendingQuote = saved.pendingQuote ?? null;
-				this.state.pendingSends = saved.pendingSends ?? [];
+				// Entries saved before exports were tracked are all provider tokens.
+				this.state.pendingSends = (saved.pendingSends ?? []).map((send) => ({
+					...send,
+					kind: send.kind ?? 'provider',
+					proofs: send.proofs ?? []
+				}));
 			}
 		} catch (error) {
 			console.error('Failed to load Cashu wallet:', error);
@@ -386,13 +481,35 @@ class CashuWalletService {
 		this.state.loaded = true;
 
 		await this.resumePendingQuote();
-		for (const pending of [...this.state.pendingSends]) {
+		for (const pending of this.state.pendingSends.filter((send) => send.kind === 'provider')) {
 			try {
 				await this.reclaimSend(pending.id);
 			} catch (error) {
 				console.warn('Could not reclaim pending Cashu token:', error);
 			}
 		}
+		await this.refreshExports();
+	}
+
+	/**
+	 * Asks the mint whether a sent token was redeemed. Entries saved without proofs
+	 * report `unspent`, so reclaiming falls back to attempting a receive.
+	 */
+	private async sendState(pending: PendingSend): Promise<SendState> {
+		if (pending.proofs.length === 0) {
+			return 'unspent';
+		}
+		const wallet = await this.getWallet(pending.mintUrl);
+		const states = await wallet.checkProofsStates(
+			pending.proofs.map(({ id, secret }) => ({ id, secret }))
+		);
+		if (states.every((entry) => entry.state === CheckStateEnum.SPENT)) {
+			return 'spent';
+		}
+		if (states.every((entry) => entry.state === CheckStateEnum.UNSPENT)) {
+			return 'unspent';
+		}
+		return 'pending';
 	}
 
 	/** Mints a quote paid while the page was closed; drops expired ones. */
@@ -506,13 +623,19 @@ class CashuWalletService {
 		);
 	}
 
-	/** Prefers the configured mint; otherwise any mint holding enough sats. */
-	private pickMintFor(amount: number): string | null {
+	/** Prefers the configured mint; otherwise any (accepted) mint holding enough sats. */
+	private pickMintFor(amount: number, acceptedMints?: string[]): string | null {
 		const candidates = [
 			CASHU_MINT_URL,
 			...Object.keys(this.state.proofsByMint).filter((url) => url !== CASHU_MINT_URL)
-		];
+		].filter((url) => !acceptedMints || acceptedMints.includes(url));
 		return candidates.find((url) => sum(this.state.proofsByMint[url] ?? []) >= amount) ?? null;
+	}
+
+	private fundedMints(): string[] {
+		return Object.keys(this.state.proofsByMint).filter(
+			(url) => sum(this.state.proofsByMint[url] ?? []) > 0
+		);
 	}
 
 	private addProofs(mintUrl: string, proofs: StoredProof[]): void {
