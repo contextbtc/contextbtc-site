@@ -92,6 +92,15 @@ export function isAutoMode(config: LLMConfig): boolean {
 	return config.model === 'auto' && config.baseURL.toLowerCase().includes('openrouter.ai');
 }
 
+export const ROUTSTR_PROVIDER_KEY = 'routstr';
+/** Model used when switching to Routstr from auto mode (~4-6 sats per request). */
+export const ROUTSTR_DEFAULT_MODEL = 'deepseek-v4.1-flash';
+
+/** Routstr without an API key pays per request from the local Cashu wallet. */
+export function usesCashuWallet(config: LLMConfig): boolean {
+	return config.provider === ROUTSTR_PROVIDER_KEY && !config.apiKey.trim();
+}
+
 export function requiresApiKey(config: LLMConfig): boolean {
 	const preset = PROVIDER_PRESETS.find((candidate) => candidate.key === config.provider);
 	return preset?.requiresKey ?? false;

@@ -5,8 +5,18 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { CHAT_SERVER, chatMcpServer } from '$lib/services/chatMcpServer.svelte';
 	import { loadLLMConfig, saveLLMConfig } from '$lib/services/chat-history';
-	import { DEFAULT_LLM_CONFIG, type LLMConfig } from '$lib/types/chat-types';
+	import {
+		DEFAULT_LLM_CONFIG,
+		PROVIDER_PRESETS,
+		ROUTSTR_DEFAULT_MODEL,
+		ROUTSTR_PROVIDER_KEY,
+		usesCashuWallet,
+		type LLMConfig
+	} from '$lib/types/chat-types';
+	import { cashuWallet } from '$lib/services/cashu-wallet.svelte';
+	import { DIALOG_IDS, dialogState } from '$lib/stores/dialog-state.svelte';
 	import { browser } from '$app/environment';
+	import { onMount, untrack } from 'svelte';
 	import PlugIcon from '@lucide/svelte/icons/plug';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 
@@ -25,6 +35,42 @@
 		if (browser) {
 			localStorage.setItem(AUTO_APPROVE_KEY, autoApproveTools ? '1' : '0');
 		}
+	});
+
+	// First visit with an empty wallet and no key of their own: offer a top-up.
+	onMount(() => {
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		void cashuWallet.init().then(() => {
+			if (!cashuWallet.topupPromptSeen && cashuWallet.balance === 0 && !config.apiKey.trim()) {
+				timeout = setTimeout(() => (dialogState.dialogId ??= DIALOG_IDS.WALLET), 500);
+			}
+		});
+		return () => clearTimeout(timeout);
+	});
+
+	// After a Lightning top-up, point the chat at Routstr so the sats are usable right away.
+	let seenFundedCount = cashuWallet.state.fundedCount;
+	$effect(() => {
+		const fundedCount = cashuWallet.state.fundedCount;
+		if (fundedCount === seenFundedCount) {
+			return;
+		}
+		seenFundedCount = fundedCount;
+		untrack(() => {
+			if (usesCashuWallet(config)) {
+				return;
+			}
+			const routstr = PROVIDER_PRESETS.find((preset) => preset.key === ROUTSTR_PROVIDER_KEY);
+			config = {
+				provider: ROUTSTR_PROVIDER_KEY,
+				baseURL: routstr?.baseURL ?? config.baseURL,
+				apiKey: '',
+				model:
+					config.provider === ROUTSTR_PROVIDER_KEY && config.model.trim()
+						? config.model
+						: ROUTSTR_DEFAULT_MODEL
+			};
+		});
 	});
 
 	const modelLabel = $derived(

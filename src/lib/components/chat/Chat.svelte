@@ -1,10 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { isAutoMode, type ChatMessage, type LLMConfig } from '$lib/types/chat-types';
+	import {
+		isAutoMode,
+		usesCashuWallet,
+		type ChatMessage,
+		type LLMConfig
+	} from '$lib/types/chat-types';
 	import { LLMService } from '$lib/services/llm';
 	import { AgentOrchestrator } from '$lib/services/agent-orchestrator';
 	import { CHAT_SERVER, chatMcpServer } from '$lib/services/chatMcpServer.svelte';
 	import { clearMessages, loadMessages, saveMessages } from '$lib/services/chat-history';
+	import { cashuWallet } from '$lib/services/cashu-wallet.svelte';
+	import { isInsufficientFundsMessage } from '$lib/services/routstr-payment';
+	import { DIALOG_IDS, dialogState } from '$lib/stores/dialog-state.svelte';
 	import ChatBubble from '$lib/components/chat/ChatBubble.svelte';
 	import ChatInput from '$lib/components/chat/ChatInput.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -27,6 +35,7 @@
 	let isStreaming = $state(false);
 	let isPreparingTools = $state(false);
 	let errorMessage = $state<string | null>(null);
+	let needsTopUp = $state(false);
 	let toolsWarning = $state<string | null>(null);
 	let llmService: LLMService | null = null;
 	let orchestrator: AgentOrchestrator | null = null;
@@ -37,6 +46,22 @@
 	const connection = $derived(chatMcpServer.state);
 	const autoModeEnabled = $derived(isAutoMode(config));
 	const hasApiKey = $derived(config.apiKey.trim().length > 0);
+	const payingWithCashu = $derived(usesCashuWallet(config));
+	const canSend = $derived(hasApiKey || (payingWithCashu && cashuWallet.balance > 0));
+	const inputPlaceholder = $derived(
+		canSend
+			? 'Ask about the Bitcoin node...'
+			: payingWithCashu
+				? 'Top up your wallet to start'
+				: 'Add an API key to start'
+	);
+
+	const openTopUp = () => (dialogState.dialogId = DIALOG_IDS.WALLET);
+
+	const showError = (message: string) => {
+		errorMessage = message;
+		needsTopUp = payingWithCashu && isInsufficientFundsMessage(message);
+	};
 
 	onMount(() => {
 		messages = loadMessages();
@@ -153,6 +178,7 @@
 		}
 
 		errorMessage = null;
+		needsTopUp = false;
 		toolsWarning = null;
 		messages = [
 			...messages,
@@ -195,11 +221,11 @@
 				lastUsedModel = result.lastModel;
 			}
 			if (result.error) {
-				errorMessage = result.error;
+				showError(result.error);
 			}
 		} catch (error) {
 			if (!controller.signal.aborted) {
-				errorMessage = error instanceof Error ? error.message : 'Something went wrong.';
+				showError(error instanceof Error ? error.message : 'Something went wrong.');
 			}
 		} finally {
 			if (persistTimeout) {
@@ -268,7 +294,23 @@
 				{#if connection.error}
 					<p class="text-xs text-destructive">{connection.error}</p>
 				{/if}
-				{#if !hasApiKey}
+				{#if payingWithCashu && !canSend}
+					<p class="text-xs text-muted-foreground">
+						Routstr is paid per request with ecash.
+						<button
+							type="button"
+							class="font-medium text-primary hover:underline"
+							onclick={openTopUp}
+						>
+							Top up your wallet
+						</button>
+						to start chatting.
+					</p>
+				{:else if payingWithCashu}
+					<p class="text-[11px] text-muted-foreground/70">
+						Paying per request with ecash — replies arrive in one piece once generated.
+					</p>
+				{:else if !hasApiKey}
 					<p class="text-xs text-muted-foreground">
 						Add an API key under <span class="font-medium">Model</span> to start chatting.
 					</p>
@@ -303,6 +345,11 @@
 					class="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive"
 				>
 					{errorMessage}
+					{#if needsTopUp}
+						<button type="button" class="ml-1 font-medium underline" onclick={openTopUp}>
+							Top up
+						</button>
+					{/if}
 				</p>
 			{/if}
 			{#if toolsWarning}
@@ -315,10 +362,10 @@
 			{/if}
 			<ChatInput
 				{isStreaming}
-				disabled={!hasApiKey}
+				disabled={!canSend}
 				onSend={handleSend}
 				onStop={handleStop}
-				placeholder={hasApiKey ? 'Ask about the Bitcoin node...' : 'Add an API key to start'}
+				placeholder={inputPlaceholder}
 			/>
 		</div>
 	</div>

@@ -61,6 +61,7 @@
 		"vite": "^7.3.1"
 	},
 	"dependencies": {
+		"@cashu/cashu-ts": "^4.10.2",
 		"@contextvm/mcp-sdk": "^1.30.0",
 		"@contextvm/sdk": "^0.13.6",
 		"@tanstack/svelte-query": "^5.90.2",

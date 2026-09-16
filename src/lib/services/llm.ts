@@ -3,8 +3,14 @@ import type {
 	ChatCompletionMessageParam,
 	ChatCompletionTool
 } from 'openai/resources/chat/completions';
-import { isAutoMode, type ChatMessage, type LLMConfig } from '$lib/types/chat-types';
+import {
+	isAutoMode,
+	usesCashuWallet,
+	type ChatMessage,
+	type LLMConfig
+} from '$lib/types/chat-types';
 import { FreeModelRotator, isRetryableError } from '$lib/services/auto-mode';
+import { createRoutstrFetch } from '$lib/services/routstr-payment';
 
 export interface SendMessageOptions {
 	signal?: AbortSignal;
@@ -202,7 +208,8 @@ export class LLMService {
 			apiKey: config.apiKey || 'missing-api-key',
 			baseURL,
 			defaultHeaders: getDefaultHeaders(baseURL),
-			dangerouslyAllowBrowser: true
+			dangerouslyAllowBrowser: true,
+			...(usesCashuWallet(config) ? { fetch: createRoutstrFetch(baseURL) } : {})
 		});
 	}
 
