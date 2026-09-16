@@ -42,6 +42,10 @@
 
 	const open = $derived(dialogState.dialogId === DIALOG_IDS.WALLET);
 	const balance = $derived(cashuWallet.balance);
+	const pendingBalance = $derived(cashuWallet.pendingBalance);
+	const exportedTokens = $derived(cashuWallet.exportedTokens);
+	let recovering = $state(false);
+	let reclaimingId = $state<string | null>(null);
 	const selectedAmount = $derived(customAmount ? Math.floor(Number(customAmount)) : amount);
 	const validAmount = $derived(Number.isFinite(selectedAmount) && selectedAmount > 0);
 	const exportSats = $derived(exportAmount ? Math.floor(Number(exportAmount)) : balance);
@@ -70,6 +74,7 @@
 		}
 		untrack(() => {
 			error = null;
+			now = Date.now();
 			const pending = cashuWallet.state.pendingQuote;
 			if (pending) {
 				tab = 'topup';
@@ -90,6 +95,9 @@
 	const selectTab = (next: Tab) => {
 		tab = next;
 		error = null;
+		if (next === 'withdraw') {
+			void cashuWallet.refreshExports();
+		}
 	};
 
 	const stopPolling = () => {
@@ -196,6 +204,52 @@
 		}
 	};
 
+	const recoverPending = async () => {
+		recovering = true;
+		error = null;
+		try {
+			const recovered = await cashuWallet.reclaimAll();
+			toast.success(
+				recovered > 0 ? `Recovered ${recovered.toLocaleString()} sats` : 'Nothing left to recover'
+			);
+		} catch (reason) {
+			error = reason instanceof Error ? reason.message : 'Could not recover the pending sats.';
+		} finally {
+			recovering = false;
+		}
+	};
+
+	const reclaimExport = async (id: string) => {
+		reclaimingId = id;
+		error = null;
+		try {
+			const received = await cashuWallet.reclaimSend(id);
+			if (received > 0) {
+				toast.success(`Reclaimed ${received.toLocaleString()} sats`);
+			} else {
+				toast.info('That token was already redeemed by its recipient');
+			}
+			if (
+				exportedToken &&
+				!cashuWallet.exportedTokens.some((send) => send.token === exportedToken)
+			) {
+				exportedToken = null;
+			}
+		} catch (reason) {
+			error = reason instanceof Error ? reason.message : 'Could not reclaim the token.';
+		} finally {
+			reclaimingId = null;
+		}
+	};
+
+	const formatAge = (createdAt: number) => {
+		const minutes = Math.floor((now - createdAt) / 60_000);
+		if (minutes < 1) return 'just now';
+		if (minutes < 60) return `${minutes}m ago`;
+		const hours = Math.floor(minutes / 60);
+		return hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`;
+	};
+
 	const copy = async (id: string, text: string) => {
 		await navigator.clipboard.writeText(text);
 		copied = id;
@@ -239,7 +293,7 @@
 
 		<div class="flex gap-1 rounded-lg bg-muted p-1">
 			{@render tabButton('topup', 'Top up')}
-			{@render tabButton('withdraw', 'Withdraw', balance === 0)}
+			{@render tabButton('withdraw', 'Withdraw', balance === 0 && exportedTokens.length === 0)}
 		</div>
 
 		{#if tab === 'topup'}
@@ -449,8 +503,8 @@
 						<p
 							class="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300"
 						>
-							These sats have already left this wallet. Copy the token now — closing this dialog
-							without saving it loses them.
+							These sats have left this wallet. Until someone redeems the token it stays listed
+							under Unclaimed tokens, where you can copy it again or reclaim it.
 						</p>
 						<Button
 							variant="ghost"
@@ -483,6 +537,45 @@
 						Creates a cashu token you can paste into any wallet that accepts {mintHost}.
 					</p>
 				{/if}
+
+				{#if withdrawMethod === 'token' && exportedTokens.length > 0}
+					<div class="space-y-1.5 border-t border-border pt-3">
+						<p class="text-xs font-medium">Unclaimed tokens</p>
+						{#each exportedTokens as sent (sent.id)}
+							<div
+								class="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-xs"
+							>
+								<span class="font-medium tabular-nums">{sent.amount.toLocaleString()} sats</span>
+								<span class="text-muted-foreground">{formatAge(sent.createdAt)}</span>
+								<Button
+									variant="ghost"
+									size="sm"
+									class="ml-auto h-7 px-2"
+									aria-label="Copy token"
+									onclick={() => copy(sent.id, sent.token)}
+								>
+									{#if copied === sent.id}
+										<CheckIcon class="h-3.5 w-3.5" />
+									{:else}
+										<CopyIcon class="h-3.5 w-3.5" />
+									{/if}
+								</Button>
+								<Button
+									variant="outline"
+									size="sm"
+									class="h-7 px-2"
+									disabled={reclaimingId !== null}
+									onclick={() => reclaimExport(sent.id)}
+								>
+									{#if reclaimingId === sent.id}
+										<LoaderCircleIcon class="h-3.5 w-3.5 animate-spin" />
+									{/if}
+									Reclaim
+								</Button>
+							</div>
+						{/each}
+					</div>
+				{/if}
 			</div>
 		{/if}
 
@@ -499,6 +592,23 @@
 				Balance: <span class="font-medium text-foreground">{balance.toLocaleString()} sats</span>
 				· Mint: {mintHost}
 			</p>
+			{#if pendingBalance > 0}
+				<p class="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+					{pendingBalance.toLocaleString()} sats pending from a failed payment
+					<Button
+						variant="outline"
+						size="sm"
+						class="ml-auto h-6 px-2 text-[11px]"
+						disabled={recovering}
+						onclick={recoverPending}
+					>
+						{#if recovering}
+							<LoaderCircleIcon class="h-3 w-3 animate-spin" />
+						{/if}
+						Recover
+					</Button>
+				</p>
+			{/if}
 			<p class="text-[11px] leading-4">
 				Ecash is held by the mint and stored only in this browser. Clearing site data loses it —
 				keep balances small.
