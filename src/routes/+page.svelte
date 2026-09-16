@@ -8,7 +8,7 @@
 	import Boxes from '@lucide/svelte/icons/boxes';
 
 	const aboutHref = $derived<`/about`>('/about');
-	const walletHref = $derived<`/wallet`>('/wallet');
+	const chatHref = $derived<`/chat`>('/chat');
 	const bitcoinLogoSrc = asset('/bitcoin_logo.svg');
 
 	const features = [
@@ -91,9 +91,9 @@
 				<Button
 					size="lg"
 					class="w-full px-6 text-base transition-transform duration-200 hover:scale-105 sm:w-auto sm:px-8"
-					href={resolve(walletHref)}
+					href={resolve(chatHref)}
 				>
-					Experimental POC Wallet
+					Chat with Bitcoin Core
 				</Button>
 				<Button
 					size="lg"
