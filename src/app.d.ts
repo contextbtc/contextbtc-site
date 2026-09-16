@@ -17,6 +17,7 @@ declare global {
  */
 interface ImportMetaEnv {
 	readonly VITE_BITCOINCORE_SERVER_PUBKEY?: string;
+	readonly VITE_CASHU_MINT_URL?: string;
 }
 
 interface ImportMeta {

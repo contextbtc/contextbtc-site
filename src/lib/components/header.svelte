@@ -8,6 +8,7 @@
 	import ThemeToggle from './theme-toggle.svelte';
 	import AccountLoginDialog from './AccountLoginDialog.svelte';
 	import ProfileCard from './ProfileCard.svelte';
+	import CashuBalanceButton from './cashu/CashuBalanceButton.svelte';
 	import { activeAccount } from '$lib/services/accountManager.svelte';
 
 	const homeHref = $derived<`/`>('/');
@@ -81,12 +82,14 @@
 				{/if}
 			</div>
 			<div class="flex items-center space-x-2">
+				<CashuBalanceButton />
 				<ThemeToggle />
 			</div>
 		</div>
 
 		<!-- Mobile Menu Button -->
 		<div class="flex items-center space-x-2 sm:hidden">
+			<CashuBalanceButton />
 			<ThemeToggle />
 			<button
 				onclick={() => (isMenuOpen = !isMenuOpen)}
