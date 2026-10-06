@@ -20,6 +20,19 @@
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import PlugIcon from '@lucide/svelte/icons/plug';
 	import ServerIcon from '@lucide/svelte/icons/server';
+	import BoxIcon from '@lucide/svelte/icons/box';
+	import CoinsIcon from '@lucide/svelte/icons/coins';
+	import GaugeIcon from '@lucide/svelte/icons/gauge';
+	import LayersIcon from '@lucide/svelte/icons/layers';
+
+	// Kept to answers that fit in a small tool result; a full block's hex would
+	// bloat every later request to the LLM.
+	const EXAMPLE_QUESTIONS = [
+		{ icon: BoxIcon, text: 'How many transactions were in the last block?' },
+		{ icon: GaugeIcon, text: 'What is the current block height and difficulty?' }
+		// { icon: LayersIcon, text: 'How full is the mempool right now?' },
+		// { icon: CoinsIcon, text: 'What fee rate gets a transaction into the next block?' }
+	];
 
 	let {
 		config,
@@ -259,8 +272,7 @@
 				<div class="space-y-2">
 					<p class="text-xl font-semibold text-foreground">Ask the Bitcoin node anything</p>
 					<p class="text-sm leading-6 text-muted-foreground">
-						This chat is wired to a single ContextVM server over Nostr — no server discovery, no
-						picking. The model calls its tools, you approve them.
+						This chat is wired to a single Bitcoin Core node using ContextVM over Nostr.
 					</p>
 				</div>
 
@@ -274,7 +286,7 @@
 					</span>
 					<span class="min-w-0 flex-1">
 						<span class="block truncate text-sm font-medium">
-							{CHAT_SERVER.label ?? chatMcpServer.serverName}
+							{CHAT_SERVER.label}
 						</span>
 						<span class="block truncate font-mono text-[10px] text-muted-foreground">
 							{CHAT_SERVER.pubkey.slice(0, 16)}…
@@ -294,6 +306,24 @@
 				{#if connection.error}
 					<p class="text-xs text-destructive">{connection.error}</p>
 				{/if}
+
+				<div class="grid w-full max-w-md gap-2 sm:grid-cols-2">
+					{#each EXAMPLE_QUESTIONS as question (question.text)}
+						<button
+							type="button"
+							class="flex items-center gap-3 rounded-xl border border-border/60 bg-card/60 px-3.5 py-3 text-left text-sm transition-colors hover:border-primary/40 hover:bg-card disabled:pointer-events-none disabled:opacity-50"
+							disabled={!canSend || isStreaming}
+							onclick={() => handleSend(question.text)}
+						>
+							<span
+								class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
+							>
+								<question.icon class="h-4 w-4" />
+							</span>
+							<span class="min-w-0 flex-1 leading-5">{question.text}</span>
+						</button>
+					{/each}
+				</div>
 				{#if payingWithCashu && !canSend}
 					<p class="text-xs text-muted-foreground">
 						Routstr is paid per request with ecash.
