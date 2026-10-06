@@ -24,7 +24,7 @@
 
 	let config = $state<LLMConfig>(loadLLMConfig({ ...DEFAULT_LLM_CONFIG }));
 	let lastUsedModel = $state('');
-	let autoApproveTools = $state(browser && localStorage.getItem(AUTO_APPROVE_KEY) === '1');
+	let autoApproveTools = $state(browser && localStorage.getItem(AUTO_APPROVE_KEY) !== '0');
 	let chat = $state<ReturnType<typeof Chat> | null>(null);
 
 	$effect(() => {
