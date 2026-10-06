@@ -93,8 +93,7 @@ export function isAutoMode(config: LLMConfig): boolean {
 }
 
 export const ROUTSTR_PROVIDER_KEY = 'routstr';
-/** Model used when switching to Routstr from auto mode (~4-6 sats per request). */
-export const ROUTSTR_DEFAULT_MODEL = 'deepseek-v4.1-flash';
+export const ROUTSTR_DEFAULT_MODEL = '~deepseek/deepseek-v4-flash-latest';
 
 /** Routstr without an API key pays per request from the local Cashu wallet. */
 export function usesCashuWallet(config: LLMConfig): boolean {

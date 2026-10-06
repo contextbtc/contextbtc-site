@@ -103,6 +103,28 @@ function toOpenAiMessages(messages: ChatMessage[]): ChatCompletionMessageParam[]
 	return mapped;
 }
 
+/**
+ * The SDK reports any `fetch` rejection as a bare "Connection error.". That
+ * includes HTTP errors whose response lacks CORS headers (e.g. a proxy's
+ * 413 Content Too Large): the browser hides their status from us, so say so and
+ * report the request size, the most likely culprit.
+ */
+function describeRequestError(error: unknown, params: object): unknown {
+	if (
+		!(error instanceof OpenAI.APIConnectionError) ||
+		error instanceof OpenAI.APIConnectionTimeoutError
+	) {
+		return error;
+	}
+
+	const bytes = new TextEncoder().encode(JSON.stringify(params)).length;
+	const size =
+		bytes >= 1024 * 1024
+			? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+			: `${Math.ceil(bytes / 1024)} KB`;
+	return new Error(`Could not reach the LLM provider (request size: ${size}).`, { cause: error });
+}
+
 function getDefaultHeaders(baseURL: string): Record<string, string> | undefined {
 	const isOpenRouter = baseURL.includes('openrouter.ai');
 	return isOpenRouter && typeof window !== 'undefined'
@@ -241,23 +263,27 @@ export class LLMService {
 			}, LLMService.STREAM_IDLE_TIMEOUT_MS);
 		};
 
-		const stream = await this.client.chat.completions.create(
-			{
-				model,
-				messages: toOpenAiMessages(messages),
-				stream: true,
-				...(tools?.length ? { tools } : {})
-			},
-			{
-				signal: controller.signal
-			}
-		);
+		const params = {
+			model,
+			messages: toOpenAiMessages(messages),
+			stream: true,
+			...(tools?.length ? { tools } : {})
+		} as const;
 
 		let content = '';
 		let finishReason = 'stop';
 		const toolCallAccumulator = new Map<number, { id: string; name: string; args: string }>();
 
 		try {
+			let stream;
+			try {
+				stream = await this.client.chat.completions.create(params, {
+					signal: controller.signal
+				});
+			} catch (error) {
+				throw describeRequestError(error, params);
+			}
+
 			resetIdleTimeout();
 			for await (const chunk of stream) {
 				resetIdleTimeout();
