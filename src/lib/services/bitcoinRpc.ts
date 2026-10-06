@@ -1,6 +1,7 @@
 import { NostrClientTransport, PrivateKeySigner } from '@contextvm/sdk';
 import { Client } from '@contextvm/mcp-sdk/client/index.js';
 import type { CallToolResult } from '@contextvm/mcp-sdk/types.js';
+import { CALL_TOOL_OPTIONS } from './mcp-request-options';
 import { commonRelays } from './relay-pool';
 
 /**
@@ -19,8 +20,6 @@ const CLIENT_CONFIG = {
 	name: 'ContextBTC Wallet',
 	version: '0.0.1'
 } as const;
-
-const REQUEST_TIMEOUT_MS = 60_000;
 
 export interface BlockchainInfo {
 	chain: string;
@@ -59,9 +58,11 @@ export class BitcoinRpc {
 	async call<T>(method: string, args: Record<string, unknown> = {}): Promise<T> {
 		if (!this.client) throw new Error('BitcoinRpc is not connected');
 
-		const result = (await this.client.callTool({ name: method, arguments: args }, undefined, {
-			timeout: REQUEST_TIMEOUT_MS
-		})) as CallToolResult;
+		const result = (await this.client.callTool(
+			{ name: method, arguments: args },
+			undefined,
+			CALL_TOOL_OPTIONS
+		)) as CallToolResult;
 
 		const text =
 			result.content.find((c): c is { type: 'text'; text: string } => c.type === 'text')?.text ??

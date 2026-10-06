@@ -2,6 +2,7 @@ import { NostrClientTransport, PrivateKeySigner } from '@contextvm/sdk';
 import { Client } from '@contextvm/mcp-sdk/client/index.js';
 import type { CallToolResult, ListToolsResult, Tool } from '@contextvm/mcp-sdk/types.js';
 import { DEFAULT_SERVER_PUBKEY } from './bitcoinRpc';
+import { CALL_TOOL_OPTIONS, REQUEST_TIMEOUT_MS } from './mcp-request-options';
 import { commonRelays } from './relay-pool';
 
 /**
@@ -19,8 +20,6 @@ const CLIENT_CONFIG = {
 	name: 'ContextBTC Chat',
 	version: '0.0.1'
 } as const;
-
-const REQUEST_TIMEOUT_MS = 60_000;
 
 export interface McpConnectionState {
 	connected: boolean;
@@ -121,8 +120,7 @@ class ChatMcpServerService {
 		}
 
 		const result = await client.callTool({ name: toolName, arguments: args }, undefined, {
-			timeout: REQUEST_TIMEOUT_MS,
-			resetTimeoutOnProgress: true,
+			...CALL_TOOL_OPTIONS,
 			signal
 		});
 
