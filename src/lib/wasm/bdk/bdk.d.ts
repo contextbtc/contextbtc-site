@@ -19,6 +19,17 @@ export class WalletWrapper {
 		connected_to_hash: string
 	): void;
 	/**
+	 * Applies the result of an Electrum scan, gathered by JS (see
+	 * [`ElectrumUpdate`] for the JSON shape).
+	 *
+	 * Each confirmed transaction's merkle proof is checked against the
+	 * header of its block before it is anchored there, since the Electrum
+	 * server is remote and not trusted. `seen_at` (unix seconds) is the
+	 * last-seen time recorded for unconfirmed transactions; it is passed in
+	 * because wasm32 has no clock.
+	 */
+	apply_electrum_update(update_json: string, seen_at: bigint): void;
+	/**
 	 * Total confirmed + unconfirmed balance in satoshis.
 	 */
 	balance(): bigint;
@@ -33,6 +44,12 @@ export class WalletWrapper {
 	constructor(network: string, external_descriptor: string, internal_descriptor: string);
 	peek_address(index: number): string;
 	reveal_next_address(): string;
+	/**
+	 * Electrum script hashes of `count` scripts of `keychain` ("external" or
+	 * "internal") starting at derivation `start`, as a JSON
+	 * `[{index, scripthash}]` string. Derivation does not reveal addresses.
+	 */
+	scripthashes(keychain: string, start: number, count: number): string;
 	/**
 	 * Merges the pending changeset into `previous` and returns the JSON string.
 	 */
@@ -65,6 +82,12 @@ export interface InitOutput {
 		f: number,
 		g: number
 	) => [number, number];
+	readonly walletwrapper_apply_electrum_update: (
+		a: number,
+		b: number,
+		c: number,
+		d: bigint
+	) => [number, number];
 	readonly walletwrapper_balance: (a: number) => bigint;
 	readonly walletwrapper_load: (
 		a: number,
@@ -84,6 +107,13 @@ export interface InitOutput {
 	) => [number, number, number];
 	readonly walletwrapper_peek_address: (a: number, b: number) => [number, number];
 	readonly walletwrapper_reveal_next_address: (a: number) => [number, number];
+	readonly walletwrapper_scripthashes: (
+		a: number,
+		b: number,
+		c: number,
+		d: number,
+		e: number
+	) => [number, number, number, number];
 	readonly walletwrapper_take_merged: (
 		a: number,
 		b: number,

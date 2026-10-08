@@ -1,8 +1,9 @@
 import { NostrClientTransport, PrivateKeySigner } from '@contextvm/sdk';
 import { Client } from '@contextvm/mcp-sdk/client/index.js';
 import type { CallToolResult, ListToolsResult, Tool } from '@contextvm/mcp-sdk/types.js';
-import { SERVER_PUBKEY } from './bitcoinRpc';
+import { SERVER_PUBKEY, SERVER_PUBKEY_ENV } from './bitcoinRpc';
 import { CALL_TOOL_OPTIONS, REQUEST_TIMEOUT_MS } from './mcp-request-options';
+import { requirePubkey } from './mcpToolClient';
 import { commonRelays } from './relay-pool';
 
 /**
@@ -62,7 +63,7 @@ class ChatMcpServerService {
 		try {
 			const transport = new NostrClientTransport({
 				signer: new PrivateKeySigner(),
-				serverPubkey: CHAT_SERVER.pubkey,
+				serverPubkey: requirePubkey(CHAT_SERVER.pubkey, SERVER_PUBKEY_ENV),
 				discoveryRelayUrls: [...CHAT_SERVER.relays],
 				fallbackOperationalRelayUrls: [...CHAT_SERVER.relays],
 				isStateless: true

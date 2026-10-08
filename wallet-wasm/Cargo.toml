@@ -13,6 +13,7 @@ default = ["console_error_panic_hook"]
 [dependencies]
 # Pinned to match the wasm-bindgen CLI provided by the Nix dev shell.
 wasm-bindgen = "=0.2.121"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # Better panic messages in the browser console (dev aid).
@@ -21,8 +22,9 @@ console_error_panic_hook = { version = "0.1.7", optional = true }
 # WASM compatibility: browser-backed RNG for anything pulling in `getrandom`.
 getrandom = { version = "0.2", features = ["js"] }
 
-# BDK. Chain sync is driven from JS (bitcoind RPC over ContextVM), so no
-# Esplora/async client is needed here — blocks are applied via `apply_block`.
+# BDK. Chain sync is driven from JS (bitcoind RPC or Electrum over ContextVM),
+# so no Esplora/async client is needed here — data arrives via `apply_block` or
+# `apply_electrum_update`.
 bdk_wallet = { version = "1.1.0" }
 
 [profile.release]
