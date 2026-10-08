@@ -7,16 +7,22 @@
 	import Loader from '@lucide/svelte/icons/loader-circle';
 	import type { WalletWrapper } from '$lib/wasm/bdk/bdk';
 	import {
-		syncWallet,
 		getBalanceSats,
 		revealNextAddress,
 		resetWallet,
-		type SyncProgress,
 		NETWORK,
-		SERVER_PUBKEY,
 		RELAYS
 	} from '$lib/services/bdkWallet';
+	import {
+		SYNC_BACKENDS,
+		DEFAULT_BACKEND,
+		type SyncBackend,
+		type SyncProgress
+	} from '$lib/services/walletSync';
 
+	const BACKEND_STORAGE_KEY = 'wallet:syncBackend';
+
+	let backend = $state<SyncBackend>(DEFAULT_BACKEND);
 	let wallet = $state<WalletWrapper | null>(null);
 	let balance = $state<bigint>(0n);
 	let address = $state<string | null>(null);
@@ -27,19 +33,19 @@
 
 	const balanceDisplay = $derived(balance.toLocaleString('en-US'));
 	const progressPct = $derived(
-		progress && progress.tip > progress.from
-			? Math.min(
-					100,
-					Math.round(((progress.height - progress.from) / (progress.tip - progress.from)) * 100)
-				)
+		progress && progress.total > 0
+			? Math.min(100, Math.round((progress.done / progress.total) * 100))
 			: 0
 	);
 
+	// Backends share one persisted wallet, so only one sync may run at a time:
+	// the backend selector is disabled while syncing.
 	async function runSync() {
 		status = 'syncing';
 		error = null;
+		progress = null;
 		try {
-			const result = await syncWallet((p) => (progress = p));
+			const result = await backend.sync((p) => (progress = p));
 			wallet = result.wallet;
 			balance = getBalanceSats(result.wallet);
 			caughtUp = result.caughtUp;
@@ -48,6 +54,18 @@
 			error = e instanceof Error ? e.message : String(e);
 			status = 'error';
 		}
+	}
+
+	async function selectBackend(next: SyncBackend) {
+		if (next.id === backend.id || status === 'syncing') return;
+		backend = next;
+		try {
+			localStorage.setItem(BACKEND_STORAGE_KEY, next.id);
+		} catch {
+			// Storage unavailable: the choice just isn't remembered.
+		}
+		// Same wallet either way: just sync it with the newly selected backend.
+		await runSync();
 	}
 
 	function onRevealAddress() {
@@ -60,33 +78,54 @@
 		wallet = null;
 		balance = 0n;
 		address = null;
-		progress = null;
 		caughtUp = false;
 		await runSync();
 	}
 
-	onMount(runSync);
+	onMount(() => {
+		try {
+			const saved = localStorage.getItem(BACKEND_STORAGE_KEY);
+			backend = SYNC_BACKENDS.find((b) => b.id === saved) ?? DEFAULT_BACKEND;
+		} catch {
+			// Storage unavailable: keep the default backend.
+		}
+		runSync();
+	});
 </script>
 
 <SEO
 	title="Wallet"
-	description="An experimental Bitcoin wallet running in your browser, synced from bitcoind over ContextVM."
+	description="An experimental Bitcoin wallet running in your browser, synced from bitcoind or electrs over ContextVM."
 />
 
 <div class="container mx-auto max-w-3xl px-4 py-12 sm:py-16">
 	<h1 class="mb-2 text-3xl font-bold tracking-tight sm:text-4xl">Wallet</h1>
-	<p class="mb-8 text-muted-foreground">
-		A Bitcoin Regtest wallet running in your browser, synced block-by-block from a
-		<span class="font-medium">bitcoind</span> node over
+	<p class="mb-6 text-muted-foreground">
+		A Bitcoin wallet running in your browser, synced over
 		<a
 			href="https://github.com/contextvm"
 			target="_blank"
 			rel="noopener noreferrer"
 			class="underline underline-offset-4 hover:text-foreground">ContextVM</a
-		>
-		(Bitcoin RPC over Nostr). Watch-only demo on
-		<span class="font-medium capitalize">{NETWORK}</span>.
+		>. Watch-only demo on <span class="font-medium capitalize">{NETWORK}</span>.
 	</p>
+
+	<div class="mb-8">
+		<div class="mb-2 flex flex-wrap gap-2" role="group" aria-label="Sync method">
+			{#each SYNC_BACKENDS as option (option.id)}
+				<Button
+					size="sm"
+					variant={option.id === backend.id ? 'default' : 'outline'}
+					aria-pressed={option.id === backend.id}
+					disabled={status === 'syncing'}
+					onclick={() => selectBackend(option)}
+				>
+					{option.label}
+				</Button>
+			{/each}
+		</div>
+		<p class="text-sm text-muted-foreground">{backend.description}</p>
+	</div>
 
 	{#if status === 'syncing'}
 		<div class="rounded-lg border p-4">
@@ -94,11 +133,9 @@
 				<Loader class="size-4 animate-spin" />
 				<span>
 					{#if progress}
-						Syncing block {progress.height.toLocaleString('en-US')} / {progress.tip.toLocaleString(
-							'en-US'
-						)}
+						{progress.label}
 					{:else}
-						Connecting to the RPC server over ContextVM…
+						Connecting to the {backend.label} server over ContextVM…
 					{/if}
 				</span>
 			</div>
@@ -130,12 +167,7 @@
 					class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/40 bg-primary/5 p-4"
 				>
 					<p class="text-sm text-muted-foreground">
-						Sync is not complete
-						{#if progress}
-							— reached block {progress.height.toLocaleString('en-US')} of {progress.tip.toLocaleString(
-								'en-US'
-							)}.
-						{/if}
+						Sync is not complete{#if progress}&nbsp;({progressPct}%){/if}.
 					</p>
 					<Button size="sm" onclick={runSync}>Continue syncing</Button>
 				</div>
@@ -167,8 +199,8 @@
 			</Card.Root>
 
 			<p class="text-xs break-all text-muted-foreground">
-				Server: <code>{SERVER_PUBKEY}</code> via <code>{RELAYS.join(', ')}</code>. Wallet state is
-				cached in your browser's local storage.
+				{backend.label} server: <code>{backend.serverPubkey}</code> via
+				<code>{RELAYS.join(', ')}</code>. Wallet state is cached in your browser's local storage.
 			</p>
 		</div>
 	{/if}

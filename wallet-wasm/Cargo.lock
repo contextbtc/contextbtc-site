@@ -474,6 +474,7 @@ dependencies = [
  "bdk_wallet",
  "console_error_panic_hook",
  "getrandom",
+ "serde",
  "serde_json",
  "wasm-bindgen",
 ]

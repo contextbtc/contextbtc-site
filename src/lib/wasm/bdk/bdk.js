@@ -52,6 +52,26 @@ export class WalletWrapper {
 		}
 	}
 	/**
+	 * Applies the result of an Electrum scan, gathered by JS (see
+	 * [`ElectrumUpdate`] for the JSON shape).
+	 *
+	 * Each confirmed transaction's merkle proof is checked against the
+	 * header of its block before it is anchored there, since the Electrum
+	 * server is remote and not trusted. `seen_at` (unix seconds) is the
+	 * last-seen time recorded for unconfirmed transactions; it is passed in
+	 * because wasm32 has no clock.
+	 * @param {string} update_json
+	 * @param {bigint} seen_at
+	 */
+	apply_electrum_update(update_json, seen_at) {
+		const ptr0 = passStringToWasm0(update_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+		const len0 = WASM_VECTOR_LEN;
+		const ret = wasm.walletwrapper_apply_electrum_update(this.__wbg_ptr, ptr0, len0, seen_at);
+		if (ret[1]) {
+			throw takeFromExternrefTable0(ret[0]);
+		}
+	}
+	/**
 	 * Total confirmed + unconfirmed balance in satoshis.
 	 * @returns {bigint}
 	 */
@@ -144,6 +164,36 @@ export class WalletWrapper {
 			return getStringFromWasm0(ret[0], ret[1]);
 		} finally {
 			wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+		}
+	}
+	/**
+	 * Electrum script hashes of `count` scripts of `keychain` ("external" or
+	 * "internal") starting at derivation `start`, as a JSON
+	 * `[{index, scripthash}]` string. Derivation does not reveal addresses.
+	 * @param {string} keychain
+	 * @param {number} start
+	 * @param {number} count
+	 * @returns {string}
+	 */
+	scripthashes(keychain, start, count) {
+		let deferred3_0;
+		let deferred3_1;
+		try {
+			const ptr0 = passStringToWasm0(keychain, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+			const len0 = WASM_VECTOR_LEN;
+			const ret = wasm.walletwrapper_scripthashes(this.__wbg_ptr, ptr0, len0, start, count);
+			var ptr2 = ret[0];
+			var len2 = ret[1];
+			if (ret[3]) {
+				ptr2 = 0;
+				len2 = 0;
+				throw takeFromExternrefTable0(ret[2]);
+			}
+			deferred3_0 = ptr2;
+			deferred3_1 = len2;
+			return getStringFromWasm0(ptr2, len2);
+		} finally {
+			wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
 		}
 	}
 	/**

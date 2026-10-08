@@ -1,31 +1,25 @@
 import { browser } from '$app/environment';
 import init, { WalletWrapper } from '$lib/wasm/bdk/bdk';
 import bdkWasmUrl from '$lib/wasm/bdk/bdk_bg.wasm?url';
-import { BitcoinRpc, SERVER_PUBKEY } from './bitcoinRpc';
 import { commonRelays } from './relay-pool';
 
 /**
- * BDK WASM wallet service driven by bitcoind RPC over ContextVM (MCP-over-Nostr).
+ * BDK WASM wallet core, independent of how the wallet is synced.
  *
- * The browser fetches blocks via {@link BitcoinRpc} and feeds them to the WASM
- * wallet with `apply_block`, mirroring `bdk_bitcoind_rpc::Emitter`. The wallet
- * is in-memory; its `ChangeSet` (including the synced chain tip) is persisted to
- * `localStorage`, so syncing resumes where it left off on the next load.
+ * The wallet is in-memory; its `ChangeSet` (including the synced chain tip) is
+ * persisted to `localStorage`, so syncing resumes where it left off on the next
+ * load. There is one wallet: every sync backend (see `walletSync/`) loads and
+ * persists the same one, so switching backend continues from what the other
+ * already synced.
  */
 
 export const NETWORK = 'regtest';
 export const RELAYS = commonRelays;
-export { SERVER_PUBKEY };
 
 export const EXTERNAL_DESCRIPTOR =
 	"tr([12071a7c/86'/1'/0']tpubDCaLkqfh67Qr7ZuRrUNrCYQ54sMjHfsJ4yQSGb3aBr1yqt3yXpamRBUwnGSnyNnxQYu7rqeBiPfw3mjBcFNX4ky2vhjj9bDrGstkfUbLB9T/0/*)#z3x5097m";
 export const INTERNAL_DESCRIPTOR =
 	"tr([12071a7c/86'/1'/0']tpubDCaLkqfh67Qr7ZuRrUNrCYQ54sMjHfsJ4yQSGb3aBr1yqt3yXpamRBUwnGSnyNnxQYu7rqeBiPfw3mjBcFNX4ky2vhjj9bDrGstkfUbLB9T/1/*)#n9r4jswr";
-
-/** Earliest height to sync from on a fresh wallet (0 = genesis). */
-export const START_HEIGHT = 4300;
-/** Cap on blocks applied per sync call, keeping the UI responsive. Resumable. */
-export const MAX_BLOCKS_PER_SYNC = 5000;
 
 // Based on the network, we use a different storage key.
 const STORAGE_KEY = `walletData:${NETWORK}`;
@@ -53,17 +47,8 @@ function ensureWasm(): Promise<unknown> {
 	return wasmReady;
 }
 
-export interface SyncProgress {
-	/** Height of the block currently being applied. */
-	height: number;
-	/** Chain tip height reported by the RPC server. */
-	tip: number;
-	/** Height the sync started from this session. */
-	from: number;
-}
-
-/** Loads a persisted wallet or creates a fresh one (no network access). */
-async function loadOrCreateWallet(): Promise<WalletWrapper> {
+/** Loads the persisted wallet or creates a fresh one (no network access). */
+export async function loadOrCreateWallet(): Promise<WalletWrapper> {
 	await ensureWasm();
 	const stored = Store.load();
 	if (stored) {
@@ -73,61 +58,9 @@ async function loadOrCreateWallet(): Promise<WalletWrapper> {
 }
 
 /** Persists the wallet's staged changes, merging with any previous data. */
-function persist(wallet: WalletWrapper): void {
+export function persist(wallet: WalletWrapper): void {
 	const previous = Store.load();
 	Store.save(previous ? wallet.take_merged(previous) : wallet.take_staged());
-}
-
-/**
- * Connects to the RPC server, loads/creates the wallet, and syncs blocks from
- * the last checkpoint up to the chain tip (capped by {@link MAX_BLOCKS_PER_SYNC}).
- *
- * Returns the ready wallet plus whether the tip was reached this session.
- */
-export async function syncWallet(
-	onProgress?: (p: SyncProgress) => void
-): Promise<{ wallet: WalletWrapper; tip: number; synced: number; caughtUp: boolean }> {
-	const wallet = await loadOrCreateWallet();
-	const rpc = new BitcoinRpc(SERVER_PUBKEY, RELAYS);
-
-	try {
-		await rpc.connect();
-		const tip = await rpc.getBlockCount();
-
-		// Establish the block to connect the next applied block to.
-		let connHeight = wallet.tip_height();
-		let connHash: string;
-		let nextHeight: number;
-
-		if (connHeight === 0) {
-			// Fresh wallet: anchor to genesis, then start from START_HEIGHT.
-			connHash = await rpc.getBlockHash(0);
-			nextHeight = Math.max(START_HEIGHT, 1);
-		} else {
-			connHash = wallet.tip_hash();
-			nextHeight = connHeight + 1;
-		}
-
-		const end = Math.min(tip, nextHeight + MAX_BLOCKS_PER_SYNC - 1);
-		let synced = 0;
-
-		for (let h = nextHeight; h <= end; h++) {
-			// Get the block hash and hex from the RPC server and then
-			// provide it to the wallet to apply the block.
-			const hash = await rpc.getBlockHash(h);
-			const blockHex = await rpc.getBlockHex(hash);
-			wallet.apply_block(blockHex, h, connHeight, connHash);
-			connHeight = h;
-			connHash = hash;
-			synced++;
-			onProgress?.({ height: h, tip, from: nextHeight });
-		}
-
-		persist(wallet);
-		return { wallet, tip, synced, caughtUp: end >= tip };
-	} finally {
-		await rpc.close();
-	}
 }
 
 /** Total confirmed + unconfirmed balance in satoshis. */

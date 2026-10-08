@@ -11,6 +11,12 @@ export const walletwrapper_apply_block: (
 	f: number,
 	g: number
 ) => [number, number];
+export const walletwrapper_apply_electrum_update: (
+	a: number,
+	b: number,
+	c: number,
+	d: bigint
+) => [number, number];
 export const walletwrapper_balance: (a: number) => bigint;
 export const walletwrapper_load: (
 	a: number,
@@ -30,6 +36,13 @@ export const walletwrapper_new: (
 ) => [number, number, number];
 export const walletwrapper_peek_address: (a: number, b: number) => [number, number];
 export const walletwrapper_reveal_next_address: (a: number) => [number, number];
+export const walletwrapper_scripthashes: (
+	a: number,
+	b: number,
+	c: number,
+	d: number,
+	e: number
+) => [number, number, number, number];
 export const walletwrapper_take_merged: (
 	a: number,
 	b: number,
