@@ -5,6 +5,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import QrCode from '$lib/components/QrCode.svelte';
 	import Loader from '@lucide/svelte/icons/loader-circle';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import type { WalletWrapper } from '$lib/wasm/bdk/bdk';
 	import {
 		getBalanceSats,
@@ -159,6 +160,13 @@
 						{balanceDisplay}
 						<span class="text-base font-normal text-muted-foreground">sats</span>
 					</Card.Title>
+					<Card.Action>
+						<!-- Syncs the stored wallet from its tip; nothing is cleared. -->
+						<Button variant="outline" size="sm" onclick={runSync}>
+							<RefreshCw class="size-4" />
+							Sync
+						</Button>
+					</Card.Action>
 				</Card.Header>
 			</Card.Root>
 

@@ -50,7 +50,7 @@
 						? 'font-semibold text-primary'
 						: 'text-foreground/60 hover:text-primary'}"
 				>
-					Experimental POC Wallet
+					Wallet
 				</a>
 				<a
 					href={resolve(aboutHref)}
@@ -127,7 +127,7 @@
 						? 'font-semibold text-primary'
 						: 'text-foreground/60 hover:text-primary'}"
 				>
-					Experimental POC Wallet
+					Wallet
 				</a>
 				<a
 					href={resolve(aboutHref)}

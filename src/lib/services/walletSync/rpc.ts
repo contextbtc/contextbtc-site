@@ -17,7 +17,7 @@ import type { SyncBackend, SyncProgress, SyncResult } from './types';
  * Earliest height to sync from on a wallet no backend has synced yet (0 =
  * genesis). Otherwise RPC resumes from the stored tip, wherever it came from.
  */
-export const START_HEIGHT = 4300;
+export const START_HEIGHT = 0;
 /** Cap on blocks applied per sync call, keeping the UI responsive. Resumable. */
 export const MAX_BLOCKS_PER_SYNC = 5000;
 
