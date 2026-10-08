@@ -16,7 +16,7 @@ declare global {
  * error instead of a silent fallback.
  */
 interface ImportMetaEnv {
-	readonly VITE_BITCOINCORE_SERVER_PUBKEY?: string;
+	readonly VITE_CONTEXTBTC_SERVER_PUBKEY?: string;
 	readonly VITE_CASHU_MINT_URL?: string;
 }
 

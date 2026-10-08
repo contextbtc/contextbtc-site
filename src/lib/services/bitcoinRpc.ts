@@ -13,8 +13,12 @@ import { commonRelays } from './relay-pool';
  * Rust `bitcoincore_rpc` client cannot run in the browser (Tokio/native only).
  */
 
-export const DEFAULT_SERVER_PUBKEY =
-	'7807ffe23010b8961a1e1aecb1cbf82b58e7cf99401cbb7874b73e21b1b12629';
+/** ContextVM Bitcoin Core server (hex pubkey, npub or nprofile), set at build time. */
+export const SERVER_PUBKEY = import.meta.env.VITE_CONTEXTBTC_SERVER_PUBKEY?.trim() ?? '';
+
+if (!SERVER_PUBKEY) {
+	throw new Error('VITE_CONTEXTBTC_SERVER_PUBKEY is not set; add it to .env (see .env.example).');
+}
 
 const CLIENT_CONFIG = {
 	name: 'ContextBTC Wallet',
@@ -32,7 +36,7 @@ export class BitcoinRpc {
 	private client: Client | null = null;
 
 	constructor(
-		private readonly serverPubkey: string = DEFAULT_SERVER_PUBKEY,
+		private readonly serverPubkey: string = SERVER_PUBKEY,
 		private readonly relays: string[] = commonRelays
 	) {}
 

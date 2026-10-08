@@ -1,18 +1,18 @@
 import { NostrClientTransport, PrivateKeySigner } from '@contextvm/sdk';
 import { Client } from '@contextvm/mcp-sdk/client/index.js';
 import type { CallToolResult, ListToolsResult, Tool } from '@contextvm/mcp-sdk/types.js';
-import { DEFAULT_SERVER_PUBKEY } from './bitcoinRpc';
+import { SERVER_PUBKEY } from './bitcoinRpc';
 import { CALL_TOOL_OPTIONS, REQUEST_TIMEOUT_MS } from './mcp-request-options';
 import { commonRelays } from './relay-pool';
 
 /**
- * The chat is pinned to a single, hardcoded ContextVM server instead of
+ * The chat is pinned to a single, build-time configured ContextVM server instead of
  * discovering servers from Nostr relays: ContextBTC ships one known Bitcoin
  * node, so there is nothing for the user to pick.
  */
 export const CHAT_SERVER = {
 	label: 'ContextBTC Bitcoin node',
-	pubkey: import.meta.env.VITE_BITCOINCORE_SERVER_PUBKEY?.trim() || DEFAULT_SERVER_PUBKEY,
+	pubkey: SERVER_PUBKEY,
 	relays: commonRelays
 } as const;
 

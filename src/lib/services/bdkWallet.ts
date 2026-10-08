@@ -1,7 +1,7 @@
 import { browser } from '$app/environment';
 import init, { WalletWrapper } from '$lib/wasm/bdk/bdk';
 import bdkWasmUrl from '$lib/wasm/bdk/bdk_bg.wasm?url';
-import { BitcoinRpc, DEFAULT_SERVER_PUBKEY } from './bitcoinRpc';
+import { BitcoinRpc, SERVER_PUBKEY } from './bitcoinRpc';
 import { commonRelays } from './relay-pool';
 
 /**
@@ -15,7 +15,7 @@ import { commonRelays } from './relay-pool';
 
 export const NETWORK = 'regtest';
 export const RELAYS = commonRelays;
-export const SERVER_PUBKEY = DEFAULT_SERVER_PUBKEY;
+export { SERVER_PUBKEY };
 
 export const EXTERNAL_DESCRIPTOR =
 	"tr([12071a7c/86'/1'/0']tpubDCaLkqfh67Qr7ZuRrUNrCYQ54sMjHfsJ4yQSGb3aBr1yqt3yXpamRBUwnGSnyNnxQYu7rqeBiPfw3mjBcFNX4ky2vhjj9bDrGstkfUbLB9T/0/*)#z3x5097m";
