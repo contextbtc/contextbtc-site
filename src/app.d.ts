@@ -18,6 +18,8 @@ declare global {
 interface ImportMetaEnv {
 	readonly VITE_CONTEXTBTC_SERVER_PUBKEY?: string;
 	readonly VITE_CONTEXTBTC_ELECTRS_PUBKEY?: string;
+	readonly VITE_CONTEXTBTC_RELAYS?: string;
+	readonly VITE_METADATA_RELAYS?: string;
 	readonly VITE_CASHU_MINT_URL?: string;
 }
 

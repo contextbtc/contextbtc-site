@@ -3,6 +3,8 @@
 	import SEO from '$lib/components/SEO.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import QrCode from '$lib/components/QrCode.svelte';
 	import Loader from '@lucide/svelte/icons/loader-circle';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
@@ -11,8 +13,13 @@
 		getBalanceSats,
 		revealNextAddress,
 		resetWallet,
+		normalizeDescriptors,
+		loadSelectedDescriptors,
+		saveSelectedDescriptors,
+		DEFAULT_DESCRIPTORS,
 		NETWORK,
-		RELAYS
+		RELAYS,
+		type WalletDescriptors
 	} from '$lib/services/bdkWallet';
 	import {
 		SYNC_BACKENDS,
@@ -24,6 +31,12 @@
 	const BACKEND_STORAGE_KEY = 'wallet:syncBackend';
 
 	let backend = $state<SyncBackend>(DEFAULT_BACKEND);
+	/** The descriptors of the wallet being shown; edited via the inputs below. */
+	let descriptors = $state<WalletDescriptors>(DEFAULT_DESCRIPTORS);
+	let externalInput = $state(DEFAULT_DESCRIPTORS.external);
+	let internalInput = $state(DEFAULT_DESCRIPTORS.internal);
+	let descriptorError = $state<string | null>(null);
+	let applyingDescriptors = $state(false);
 	let wallet = $state<WalletWrapper | null>(null);
 	let balance = $state<bigint>(0n);
 	let address = $state<string | null>(null);
@@ -33,6 +46,9 @@
 	let caughtUp = $state(false);
 
 	const balanceDisplay = $derived(balance.toLocaleString('en-US'));
+	const descriptorsEdited = $derived(
+		externalInput.trim() !== descriptors.external || internalInput.trim() !== descriptors.internal
+	);
 	const progressPct = $derived(
 		progress && progress.total > 0
 			? Math.min(100, Math.round((progress.done / progress.total) * 100))
@@ -46,7 +62,7 @@
 		error = null;
 		progress = null;
 		try {
-			const result = await backend.sync((p) => (progress = p));
+			const result = await backend.sync(descriptors, (p) => (progress = p));
 			wallet = result.wallet;
 			balance = getBalanceSats(result.wallet);
 			caughtUp = result.caughtUp;
@@ -69,17 +85,48 @@
 		await runSync();
 	}
 
-	function onRevealAddress() {
-		if (!wallet) return;
-		address = revealNextAddress(wallet);
-	}
-
-	async function onReset() {
-		resetWallet();
+	function clearWalletState() {
 		wallet = null;
 		balance = 0n;
 		address = null;
 		caughtUp = false;
+	}
+
+	/** Validates the inputs and, if they name another wallet, switches to and syncs it. */
+	async function applyDescriptors() {
+		if (status === 'syncing') return;
+		descriptorError = null;
+		applyingDescriptors = true;
+		try {
+			const next = await normalizeDescriptors(externalInput, internalInput);
+			externalInput = next.external;
+			internalInput = next.internal;
+			if (next.external === descriptors.external && next.internal === descriptors.internal) return;
+			descriptors = next;
+			saveSelectedDescriptors(next);
+			clearWalletState();
+			await runSync();
+		} catch (e) {
+			descriptorError = e instanceof Error ? e.message : String(e);
+		} finally {
+			applyingDescriptors = false;
+		}
+	}
+
+	function restoreDefaultDescriptors() {
+		externalInput = DEFAULT_DESCRIPTORS.external;
+		internalInput = DEFAULT_DESCRIPTORS.internal;
+		applyDescriptors();
+	}
+
+	function onRevealAddress() {
+		if (!wallet) return;
+		address = revealNextAddress(wallet, descriptors);
+	}
+
+	async function onReset() {
+		resetWallet(descriptors);
+		clearWalletState();
 		await runSync();
 	}
 
@@ -90,6 +137,9 @@
 		} catch {
 			// Storage unavailable: keep the default backend.
 		}
+		descriptors = loadSelectedDescriptors();
+		externalInput = descriptors.external;
+		internalInput = descriptors.internal;
 		runSync();
 	});
 </script>
@@ -102,7 +152,7 @@
 <div class="container mx-auto max-w-3xl px-4 py-12 sm:py-16">
 	<h1 class="mb-2 text-3xl font-bold tracking-tight sm:text-4xl">Wallet</h1>
 	<p class="mb-6 text-muted-foreground">
-		A Bitcoin wallet running in your browser, synced over
+		A Bitcoin watch-only wallet running in your browser, synced over
 		<a
 			href="https://github.com/contextvm"
 			target="_blank"
@@ -110,6 +160,58 @@
 			class="underline underline-offset-4 hover:text-foreground">ContextVM</a
 		>. Watch-only demo on <span class="font-medium capitalize">{NETWORK}</span>.
 	</p>
+
+	<Card.Root class="mb-6">
+		<Card.Header>
+			<Card.Title class="text-lg">Descriptors</Card.Title>
+			<Card.Description>
+				The watch-only wallet to sync: public descriptors only. Each pair is kept as its own wallet
+				in this browser.
+			</Card.Description>
+		</Card.Header>
+		<Card.Content class="grid gap-4">
+			<div class="grid gap-2">
+				<Label for="external-descriptor">External (receive)</Label>
+				<Textarea
+					id="external-descriptor"
+					bind:value={externalInput}
+					rows={3}
+					spellcheck={false}
+					class="font-mono text-xs break-all"
+				/>
+			</div>
+			<div class="grid gap-2">
+				<Label for="internal-descriptor">Internal (change)</Label>
+				<Textarea
+					id="internal-descriptor"
+					bind:value={internalInput}
+					rows={3}
+					spellcheck={false}
+					class="font-mono text-xs break-all"
+				/>
+			</div>
+			{#if descriptorError}
+				<p class="text-sm break-words text-destructive">{descriptorError}</p>
+			{/if}
+			<div class="flex flex-wrap gap-2">
+				<Button
+					size="sm"
+					disabled={status === 'syncing' || applyingDescriptors || !descriptorsEdited}
+					onclick={applyDescriptors}
+				>
+					Apply
+				</Button>
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={status === 'syncing' || applyingDescriptors}
+					onclick={restoreDefaultDescriptors}
+				>
+					Restore default
+				</Button>
+			</div>
+		</Card.Content>
+	</Card.Root>
 
 	<div class="mb-8">
 		<div class="mb-2 flex flex-wrap gap-2" role="group" aria-label="Sync method">

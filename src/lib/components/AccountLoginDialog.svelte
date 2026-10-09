@@ -18,7 +18,7 @@
 	import { Metadata } from 'nostr-tools/kinds';
 	import type { ProfileContent } from 'applesauce-core/helpers';
 	import { DIALOG_IDS, dialogState } from '$lib/stores/dialog-state.svelte';
-	import { relayPool, metadataRelays } from '$lib/services/relay-pool';
+	import { relayPool, requireMetadataRelays } from '$lib/services/relay-pool';
 	import { copyToClipboard } from '$lib/utils';
 	import { toast } from 'svelte-sonner';
 	import Eye from '@lucide/svelte/icons/eye';
@@ -105,7 +105,7 @@
 					},
 					account.signer.key
 				);
-				relayPool.publish(metadataRelays, event);
+				relayPool.publish(requireMetadataRelays(), event);
 			}
 
 			manager.addAccount(account);

@@ -1,6 +1,6 @@
 import type { WalletWrapper } from '$lib/wasm/bdk/bdk';
 import { ELECTRS_SERVER_PUBKEY, ElectrumNostr, type HistoryEntry } from '../electrumNostr';
-import { loadOrCreateWallet, persist, RELAYS } from '../bdkWallet';
+import { loadOrCreateWallet, persist, type WalletDescriptors } from '../bdkWallet';
 import type { SyncBackend, SyncProgress, SyncResult } from './types';
 
 /**
@@ -67,10 +67,11 @@ async function scanKeychain(
 
 /** Connects to the electrs server, loads/creates the wallet and scans it up to the tip. */
 export async function syncWalletElectrum(
+	descriptors: WalletDescriptors,
 	onProgress?: (p: SyncProgress) => void
 ): Promise<SyncResult> {
-	const electrum = new ElectrumNostr(ELECTRS_SERVER_PUBKEY, RELAYS);
-	const wallet = await loadOrCreateWallet();
+	const electrum = new ElectrumNostr(ELECTRS_SERVER_PUBKEY);
+	const wallet = await loadOrCreateWallet(descriptors);
 
 	try {
 		await electrum.connect();
@@ -137,7 +138,7 @@ export async function syncWalletElectrum(
 			}),
 			BigInt(Math.floor(Date.now() / 1000))
 		);
-		persist(wallet);
+		persist(wallet, descriptors);
 		return { wallet, tip: tip.height, caughtUp: true };
 	} finally {
 		await electrum.close();

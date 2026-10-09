@@ -362,6 +362,46 @@ fn parse_keychain(keychain: &str) -> JsResult<KeychainKind> {
     }
 }
 
+/// Validates a watch-only descriptor pair for `network` and returns it in
+/// canonical form (public keys, with checksums) as a JSON
+/// `{external, internal}` string, so equivalent inputs map to one wallet.
+///
+/// Descriptors with private keys are rejected: the page is watch-only and
+/// keeps descriptors in `localStorage`.
+#[wasm_bindgen]
+pub fn normalize_descriptors(network: &str, external: &str, internal: &str) -> JsResult<String> {
+    Ok(serde_json::to_string(
+        &normalize(network, external, internal).map_err(|e| JsError::new(&e))?,
+    )?)
+}
+
+#[derive(Serialize, Debug, PartialEq)]
+struct DescriptorPair {
+    external: String,
+    internal: String,
+}
+
+fn normalize(network: &str, external: &str, internal: &str) -> Result<DescriptorPair, String> {
+    let network = parse_network(network)?;
+    let wallet = Wallet::create(external.trim().to_string(), internal.trim().to_string())
+        .network(network)
+        .create_wallet_no_persist()
+        .map_err(|e| format!("invalid descriptors: {e}"))?;
+
+    for keychain in [KeychainKind::External, KeychainKind::Internal] {
+        if !wallet.get_signers(keychain).signers().is_empty() {
+            return Err(
+                "descriptors must not contain private keys (this wallet is watch-only)".into(),
+            );
+        }
+    }
+
+    Ok(DescriptorPair {
+        external: wallet.public_descriptor(KeychainKind::External).to_string(),
+        internal: wallet.public_descriptor(KeychainKind::Internal).to_string(),
+    })
+}
+
 fn parse_network(network: &str) -> Result<Network, String> {
     match network {
         // For now only regtest is supported
@@ -379,6 +419,47 @@ mod tests {
     use super::*;
     use bdk_wallet::bitcoin::constants::genesis_block;
     use bdk_wallet::bitcoin::{merkle_tree, ScriptBuf};
+
+    const EXTERNAL: &str = "tr([12071a7c/86'/1'/0']tpubDCaLkqfh67Qr7ZuRrUNrCYQ54sMjHfsJ4yQSGb3aBr1yqt3yXpamRBUwnGSnyNnxQYu7rqeBiPfw3mjBcFNX4ky2vhjj9bDrGstkfUbLB9T/0/*)#z3x5097m";
+    const INTERNAL: &str = "tr([12071a7c/86'/1'/0']tpubDCaLkqfh67Qr7ZuRrUNrCYQ54sMjHfsJ4yQSGb3aBr1yqt3yXpamRBUwnGSnyNnxQYu7rqeBiPfw3mjBcFNX4ky2vhjj9bDrGstkfUbLB9T/1/*)#n9r4jswr";
+
+    fn without_checksum(desc: &str) -> &str {
+        desc.split('#').next().unwrap()
+    }
+
+    #[test]
+    fn normalize_keeps_canonical_descriptors() {
+        let pair = normalize("regtest", EXTERNAL, INTERNAL).unwrap();
+        assert_eq!(pair.external, EXTERNAL);
+        assert_eq!(pair.internal, INTERNAL);
+    }
+
+    #[test]
+    fn normalize_adds_checksums_and_trims() {
+        let external = format!("  {}\n", without_checksum(EXTERNAL));
+        let pair = normalize("regtest", &external, without_checksum(INTERNAL)).unwrap();
+        assert_eq!(pair, normalize("regtest", EXTERNAL, INTERNAL).unwrap());
+    }
+
+    #[test]
+    fn normalize_rejects_private_keys() {
+        use bdk_wallet::bitcoin::bip32::Xpriv;
+        let xprv = Xpriv::new_master(Network::Regtest, &[1; 32]).unwrap();
+        let err = normalize(
+            "regtest",
+            &format!("tr({xprv}/86'/1'/0'/0/*)"),
+            &format!("tr({xprv}/86'/1'/0'/1/*)"),
+        )
+        .unwrap_err();
+        assert!(err.contains("private keys"), "{err}");
+    }
+
+    #[test]
+    fn normalize_rejects_invalid_descriptors() {
+        assert!(normalize("regtest", "tr(nonsense)", INTERNAL).is_err());
+        let bad_checksum = format!("{}#qqqqqqqq", without_checksum(EXTERNAL));
+        assert!(normalize("regtest", &bad_checksum, INTERNAL).is_err());
+    }
 
     #[test]
     fn scripthash_matches_electrum_docs() {
