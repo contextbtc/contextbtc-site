@@ -1,5 +1,5 @@
 import { McpToolClient, requirePubkey } from './mcpToolClient';
-import { commonRelays } from './relay-pool';
+import { requireCommonRelays } from './relay-pool';
 
 /**
  * Electrum client that talks to a `contextbtc-electrs-server` over ContextVM
@@ -31,7 +31,10 @@ export interface MerkleProof {
 }
 
 export class ElectrumNostr extends McpToolClient {
-	constructor(serverPubkey: string = ELECTRS_SERVER_PUBKEY, relays: string[] = commonRelays) {
+	constructor(
+		serverPubkey: string = ELECTRS_SERVER_PUBKEY,
+		relays: string[] = requireCommonRelays()
+	) {
 		super(requirePubkey(serverPubkey, ELECTRS_SERVER_PUBKEY_ENV), relays, 'ContextBTC Wallet');
 	}
 

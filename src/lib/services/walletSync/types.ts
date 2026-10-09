@@ -1,4 +1,5 @@
 import type { WalletWrapper } from '$lib/wasm/bdk/bdk';
+import type { WalletDescriptors } from '../bdkWallet';
 
 /**
  * A way of syncing the BDK wallet. Backends are independent of each other in
@@ -15,7 +16,8 @@ export interface SyncBackend {
 	description: string;
 	/** ContextVM server the backend talks to ('' when not configured). */
 	serverPubkey: string;
-	sync(onProgress?: (p: SyncProgress) => void): Promise<SyncResult>;
+	/** Syncs the wallet of `descriptors` (loaded from, and persisted to, its own storage). */
+	sync(descriptors: WalletDescriptors, onProgress?: (p: SyncProgress) => void): Promise<SyncResult>;
 }
 
 export interface SyncProgress {

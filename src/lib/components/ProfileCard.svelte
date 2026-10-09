@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { addressLoader } from '$lib/services/loaders.svelte';
-	import { metadataRelays } from '$lib/services/relay-pool';
+	import { metadataRelays, METADATA_RELAYS_ENV } from '$lib/services/relay-pool';
 	import { eventStore } from '../services/eventStore';
 	import { ProfileModel } from 'applesauce-core/models';
 	import Button from './ui/button/button.svelte';
@@ -30,6 +30,11 @@
 	);
 	$effect(() => {
 		if ($profile) return;
+		// No error UI in the header avatar: fall back to the short pubkey.
+		if (metadataRelays.length === 0) {
+			console.warn(`${METADATA_RELAYS_ENV} is not set; profiles can't be loaded.`);
+			return;
+		}
 		const sub = addressLoader({
 			kind: Metadata,
 			pubkey,

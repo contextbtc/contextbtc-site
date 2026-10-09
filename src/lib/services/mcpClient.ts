@@ -1,7 +1,7 @@
 import { NostrClientTransport, PrivateKeySigner } from '@contextvm/sdk';
 import { Client } from '@contextvm/mcp-sdk/client/index.js';
 import type { ListToolsResult } from '@contextvm/mcp-sdk/types.js';
-import { commonRelays } from './relay-pool';
+import { requireCommonRelays } from './relay-pool';
 
 export type McpTool = ListToolsResult['tools'][number];
 
@@ -20,13 +20,14 @@ const REQUEST_TIMEOUT_MS = 30_000;
  * relay list; the transport falls back to them as operational relays too.
  */
 export async function listServerTools(serverPubkey: string): Promise<McpTool[]> {
+	const relays = requireCommonRelays();
 	const signer = new PrivateKeySigner();
 
 	const transport = new NostrClientTransport({
 		signer,
 		serverPubkey,
-		discoveryRelayUrls: commonRelays,
-		fallbackOperationalRelayUrls: commonRelays,
+		discoveryRelayUrls: relays,
+		fallbackOperationalRelayUrls: relays,
 		isStateless: true
 	});
 

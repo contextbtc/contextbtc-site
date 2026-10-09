@@ -271,6 +271,44 @@ export class WalletWrapper {
 	}
 }
 if (Symbol.dispose) WalletWrapper.prototype[Symbol.dispose] = WalletWrapper.prototype.free;
+
+/**
+ * Validates a watch-only descriptor pair for `network` and returns it in
+ * canonical form (public keys, with checksums) as a JSON
+ * `{external, internal}` string, so equivalent inputs map to one wallet.
+ *
+ * Descriptors with private keys are rejected: the page is watch-only and
+ * keeps descriptors in `localStorage`.
+ * @param {string} network
+ * @param {string} external
+ * @param {string} internal
+ * @returns {string}
+ */
+export function normalize_descriptors(network, external, internal) {
+	let deferred5_0;
+	let deferred5_1;
+	try {
+		const ptr0 = passStringToWasm0(network, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+		const len0 = WASM_VECTOR_LEN;
+		const ptr1 = passStringToWasm0(external, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+		const len1 = WASM_VECTOR_LEN;
+		const ptr2 = passStringToWasm0(internal, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+		const len2 = WASM_VECTOR_LEN;
+		const ret = wasm.normalize_descriptors(ptr0, len0, ptr1, len1, ptr2, len2);
+		var ptr4 = ret[0];
+		var len4 = ret[1];
+		if (ret[3]) {
+			ptr4 = 0;
+			len4 = 0;
+			throw takeFromExternrefTable0(ret[2]);
+		}
+		deferred5_0 = ptr4;
+		deferred5_1 = len4;
+		return getStringFromWasm0(ptr4, len4);
+	} finally {
+		wasm.__wbindgen_free(deferred5_0, deferred5_1, 1);
+	}
+}
 function __wbg_get_imports() {
 	const import0 = {
 		__proto__: null,

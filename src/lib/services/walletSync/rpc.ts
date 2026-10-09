@@ -1,5 +1,5 @@
 import { BitcoinRpc, SERVER_PUBKEY } from '../bitcoinRpc';
-import { loadOrCreateWallet, persist, RELAYS } from '../bdkWallet';
+import { loadOrCreateWallet, persist, type WalletDescriptors } from '../bdkWallet';
 import type { SyncBackend, SyncProgress, SyncResult } from './types';
 
 /**
@@ -25,9 +25,12 @@ export const MAX_BLOCKS_PER_SYNC = 5000;
  * Connects to the RPC server, loads/creates the wallet, and syncs blocks from
  * the last checkpoint up to the chain tip (capped by {@link MAX_BLOCKS_PER_SYNC}).
  */
-export async function syncWalletRpc(onProgress?: (p: SyncProgress) => void): Promise<SyncResult> {
-	const rpc = new BitcoinRpc(SERVER_PUBKEY, RELAYS);
-	const wallet = await loadOrCreateWallet();
+export async function syncWalletRpc(
+	descriptors: WalletDescriptors,
+	onProgress?: (p: SyncProgress) => void
+): Promise<SyncResult> {
+	const rpc = new BitcoinRpc(SERVER_PUBKEY);
+	const wallet = await loadOrCreateWallet(descriptors);
 
 	try {
 		await rpc.connect();
@@ -64,7 +67,7 @@ export async function syncWalletRpc(onProgress?: (p: SyncProgress) => void): Pro
 			});
 		}
 
-		persist(wallet);
+		persist(wallet, descriptors);
 		return { wallet, tip, caughtUp: end >= tip };
 	} finally {
 		await rpc.close();

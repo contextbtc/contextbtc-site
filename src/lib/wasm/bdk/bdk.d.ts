@@ -68,11 +68,29 @@ export class WalletWrapper {
 	tip_height(): number;
 }
 
+/**
+ * Validates a watch-only descriptor pair for `network` and returns it in
+ * canonical form (public keys, with checksums) as a JSON
+ * `{external, internal}` string, so equivalent inputs map to one wallet.
+ *
+ * Descriptors with private keys are rejected: the page is watch-only and
+ * keeps descriptors in `localStorage`.
+ */
+export function normalize_descriptors(network: string, external: string, internal: string): string;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
 	readonly memory: WebAssembly.Memory;
 	readonly __wbg_walletwrapper_free: (a: number, b: number) => void;
+	readonly normalize_descriptors: (
+		a: number,
+		b: number,
+		c: number,
+		d: number,
+		e: number,
+		f: number
+	) => [number, number, number, number];
 	readonly walletwrapper_apply_block: (
 		a: number,
 		b: number,

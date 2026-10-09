@@ -2,6 +2,14 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const __wbg_walletwrapper_free: (a: number, b: number) => void;
+export const normalize_descriptors: (
+	a: number,
+	b: number,
+	c: number,
+	d: number,
+	e: number,
+	f: number
+) => [number, number, number, number];
 export const walletwrapper_apply_block: (
 	a: number,
 	b: number,

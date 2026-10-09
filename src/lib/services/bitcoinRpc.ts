@@ -1,5 +1,5 @@
 import { McpToolClient, requirePubkey } from './mcpToolClient';
-import { commonRelays } from './relay-pool';
+import { requireCommonRelays } from './relay-pool';
 
 /**
  * Bitcoin Core JSON-RPC client that talks to a ContextVM MCP server over Nostr.
@@ -22,7 +22,7 @@ export interface BlockchainInfo {
 }
 
 export class BitcoinRpc extends McpToolClient {
-	constructor(serverPubkey: string = SERVER_PUBKEY, relays: string[] = commonRelays) {
+	constructor(serverPubkey: string = SERVER_PUBKEY, relays: string[] = requireCommonRelays()) {
 		super(requirePubkey(serverPubkey, SERVER_PUBKEY_ENV), relays, 'ContextBTC Wallet');
 	}
 
