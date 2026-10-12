@@ -1,5 +1,5 @@
 import { BitcoinRpc, SERVER_PUBKEY } from '../bitcoinRpc';
-import { loadOrCreateWallet, persist, type WalletDescriptors } from '../bdkWallet';
+import { assertServerNetwork, loadOrCreateWallet, persist, type WalletConfig } from '../bdkWallet';
 import type { SyncBackend, SyncProgress, SyncResult } from './types';
 
 /**
@@ -13,27 +13,28 @@ import type { SyncBackend, SyncProgress, SyncResult } from './types';
  * this node, e.g. electrs indexing this same bitcoind.
  */
 
-/**
- * Earliest height to sync from on a wallet no backend has synced yet (0 =
- * genesis). Otherwise RPC resumes from the stored tip, wherever it came from.
- */
-export const START_HEIGHT = 0;
 /** Cap on blocks applied per sync call, keeping the UI responsive. Resumable. */
 export const MAX_BLOCKS_PER_SYNC = 5000;
 
 /**
  * Connects to the RPC server, loads/creates the wallet, and syncs blocks from
  * the last checkpoint up to the chain tip (capped by {@link MAX_BLOCKS_PER_SYNC}).
+ *
+ * A wallet no backend has synced yet starts at its birthday,
+ * `config.startHeight`; otherwise RPC resumes from the stored tip, wherever it
+ * came from.
  */
 export async function syncWalletRpc(
-	descriptors: WalletDescriptors,
+	config: WalletConfig,
 	onProgress?: (p: SyncProgress) => void
 ): Promise<SyncResult> {
 	const rpc = new BitcoinRpc(SERVER_PUBKEY);
-	const wallet = await loadOrCreateWallet(descriptors);
+	const wallet = await loadOrCreateWallet(config);
 
 	try {
 		await rpc.connect();
+		const genesisHash = await rpc.getBlockHash(0);
+		await assertServerNetwork(config.network, genesisHash, 'Bitcoin RPC');
 		const tip = await rpc.getBlockCount();
 
 		// Establish the block to connect the next applied block to.
@@ -42,9 +43,9 @@ export async function syncWalletRpc(
 		let nextHeight: number;
 
 		if (connHeight === 0) {
-			// Fresh wallet: anchor to genesis, then start from START_HEIGHT.
-			connHash = await rpc.getBlockHash(0);
-			nextHeight = Math.max(START_HEIGHT, 1);
+			// Fresh wallet: anchor to genesis, then start from its birthday.
+			connHash = genesisHash;
+			nextHeight = Math.max(config.startHeight, 1);
 		} else {
 			connHash = wallet.tip_hash();
 			nextHeight = connHeight + 1;
@@ -67,7 +68,7 @@ export async function syncWalletRpc(
 			});
 		}
 
-		persist(wallet, descriptors);
+		persist(wallet, config);
 		return { wallet, tip, caughtUp: end >= tip };
 	} finally {
 		await rpc.close();

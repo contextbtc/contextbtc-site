@@ -30,12 +30,22 @@ export interface MerkleProof {
 	merkle: string[];
 }
 
+export interface ServerFeatures {
+	genesis_hash: string;
+	[key: string]: unknown;
+}
+
 export class ElectrumNostr extends McpToolClient {
 	constructor(
 		serverPubkey: string = ELECTRS_SERVER_PUBKEY,
 		relays: string[] = requireCommonRelays()
 	) {
 		super(requirePubkey(serverPubkey, ELECTRS_SERVER_PUBKEY_ENV), relays, 'ContextBTC Wallet');
+	}
+
+	/** Server capabilities, including the genesis hash of its chain. */
+	serverFeatures(): Promise<ServerFeatures> {
+		return this.call<ServerFeatures>('server.features');
 	}
 
 	/** Current chain tip. */

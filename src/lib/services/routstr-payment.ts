@@ -11,6 +11,19 @@ import {
  */
 export const ROUTSTR_MAX_TOKENS = 4096;
 
+/** OpenAI's GPT-5 and o-series models reject `max_tokens` in favor of `max_completion_tokens`. */
+function usesMaxCompletionTokens(model: unknown): boolean {
+	return /^(~?openai\/)?(gpt-5|o\d)/.test(String(model));
+}
+
+/**
+ * GPT-5.x models reject function tools with reasoning on /v1/chat/completions, and an
+ * upstream may add a default `reasoning_effort`; `"none"` is the value they accept.
+ */
+function needsReasoningOff(model: unknown): boolean {
+	return /^(~?openai\/)?gpt-5\.\d/.test(String(model));
+}
+
 interface SatsPricing {
 	prompt: number;
 	completion: number;
@@ -69,7 +82,7 @@ function estimateSats(pricing: SatsPricing | undefined, body: Record<string, unk
 		return 1;
 	}
 	const promptTokens = JSON.stringify(body).length / 3;
-	const maxTokens = Number(body.max_tokens) || ROUTSTR_MAX_TOKENS;
+	const maxTokens = Number(body.max_completion_tokens ?? body.max_tokens) || ROUTSTR_MAX_TOKENS;
 	const estimate =
 		(promptTokens * pricing.prompt + maxTokens * pricing.completion + (pricing.request ?? 0)) * 1.1;
 	return Math.max(1, Math.ceil(estimate));
@@ -106,7 +119,15 @@ export function createRoutstrFetch(
 		}
 
 		const body = JSON.parse(init.body) as Record<string, unknown>;
-		body.max_tokens ??= ROUTSTR_MAX_TOKENS;
+		if (usesMaxCompletionTokens(body.model)) {
+			body.max_completion_tokens ??= body.max_tokens ?? ROUTSTR_MAX_TOKENS;
+			delete body.max_tokens;
+		} else {
+			body.max_tokens ??= ROUTSTR_MAX_TOKENS;
+		}
+		if (Array.isArray(body.tools) && body.tools.length > 0 && needsReasoningOff(body.model)) {
+			body.reasoning_effort ??= 'none';
+		}
 		const payload = JSON.stringify(body);
 
 		const [pricing, acceptedMints] = await Promise.all([

@@ -17,6 +17,7 @@
 //!   and Electrum updates use `apply_update_at` with a JS-provided timestamp.
 
 use bdk_wallet::bitcoin::block::Header;
+use bdk_wallet::bitcoin::constants::genesis_block;
 use bdk_wallet::bitcoin::hashes::{sha256, sha256d, Hash};
 use bdk_wallet::bitcoin::hex::DisplayHex;
 use bdk_wallet::bitcoin::{
@@ -375,6 +376,14 @@ pub fn normalize_descriptors(network: &str, external: &str, internal: &str) -> J
     )?)
 }
 
+/// Hash of `network`'s genesis block (hex), to check a server is on the
+/// chain the wallet expects.
+#[wasm_bindgen]
+pub fn genesis_hash(network: &str) -> JsResult<String> {
+    let network = parse_network(network).map_err(|e| JsError::new(&e))?;
+    Ok(genesis_block(network).block_hash().to_string())
+}
+
 #[derive(Serialize, Debug, PartialEq)]
 struct DescriptorPair {
     external: String,
@@ -404,11 +413,10 @@ fn normalize(network: &str, external: &str, internal: &str) -> Result<Descriptor
 
 fn parse_network(network: &str) -> Result<Network, String> {
     match network {
-        // For now only regtest is supported
-        // "mainnet" | "bitcoin" => Ok(Network::Bitcoin),
-        // "testnet" => Ok(Network::Testnet),
-        // "testnet4" => Ok(Network::Testnet4),
-        // "signet" => Ok(Network::Signet),
+        "mainnet" | "bitcoin" => Ok(Network::Bitcoin),
+        "testnet" => Ok(Network::Testnet),
+        "testnet4" => Ok(Network::Testnet4),
+        "signet" => Ok(Network::Signet),
         "regtest" => Ok(Network::Regtest),
         _ => Err("Invalid network".into()),
     }
@@ -417,7 +425,6 @@ fn parse_network(network: &str) -> Result<Network, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bdk_wallet::bitcoin::constants::genesis_block;
     use bdk_wallet::bitcoin::{merkle_tree, ScriptBuf};
 
     const EXTERNAL: &str = "tr([12071a7c/86'/1'/0']tpubDCaLkqfh67Qr7ZuRrUNrCYQ54sMjHfsJ4yQSGb3aBr1yqt3yXpamRBUwnGSnyNnxQYu7rqeBiPfw3mjBcFNX4ky2vhjj9bDrGstkfUbLB9T/0/*)#z3x5097m";
@@ -452,6 +459,43 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.contains("private keys"), "{err}");
+    }
+
+    #[test]
+    fn normalize_checks_the_network() {
+        // tpub keys are valid on every test network, but not on mainnet.
+        for network in ["testnet", "testnet4", "signet"] {
+            assert!(normalize(network, EXTERNAL, INTERNAL).is_ok(), "{network}");
+        }
+        assert!(normalize("mainnet", EXTERNAL, INTERNAL).is_err());
+        assert!(normalize("nonsense", EXTERNAL, INTERNAL).is_err());
+    }
+
+    #[test]
+    fn normalize_accepts_mainnet_xpubs() {
+        use bdk_wallet::bitcoin::bip32::{Xpriv, Xpub};
+        use bdk_wallet::bitcoin::secp256k1::Secp256k1;
+        let xprv = Xpriv::new_master(Network::Bitcoin, &[2; 32]).unwrap();
+        let xpub = Xpub::from_priv(&Secp256k1::new(), &xprv);
+        let pair = normalize(
+            "mainnet",
+            &format!("wpkh({xpub}/0/*)"),
+            &format!("wpkh({xpub}/1/*)"),
+        )
+        .unwrap();
+        assert!(pair.external.contains('#') && pair.internal.contains('#'));
+    }
+
+    #[test]
+    fn genesis_hashes_match_known_values() {
+        assert_eq!(
+            genesis_hash("mainnet").unwrap(),
+            "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+        );
+        assert_eq!(
+            genesis_hash("regtest").unwrap(),
+            "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+        );
     }
 
     #[test]

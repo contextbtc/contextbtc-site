@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import init, { WalletWrapper, normalize_descriptors } from '$lib/wasm/bdk/bdk';
+import init, { WalletWrapper, genesis_hash, normalize_descriptors } from '$lib/wasm/bdk/bdk';
 import bdkWasmUrl from '$lib/wasm/bdk/bdk_bg.wasm?url';
 import { commonRelays } from './relay-pool';
 
@@ -8,31 +8,74 @@ import { commonRelays } from './relay-pool';
  *
  * The wallet is in-memory; its `ChangeSet` (including the synced chain tip) is
  * persisted to `localStorage`, so syncing resumes where it left off on the next
- * load. Each descriptor pair is its own wallet with its own storage key; every
- * sync backend (see `walletSync/`) loads and persists that same wallet, so
- * switching backend continues from what the other already synced.
+ * load. Each network + descriptor pair is its own wallet with its own storage
+ * key; every sync backend (see `walletSync/`) loads and persists that same
+ * wallet, so switching backend continues from what the other already synced.
  */
 
-export const NETWORK = 'regtest';
 export const RELAYS = commonRelays;
 
-/** A watch-only wallet: its receive (external) and change (internal) descriptors. */
-export interface WalletDescriptors {
-	external: string;
-	internal: string;
+export const NETWORKS = [
+	{ id: 'mainnet', label: 'Mainnet' }
+	// { id: 'testnet4', label: 'Testnet4' },
+	// { id: 'testnet', label: 'Testnet3' },
+	// { id: 'signet', label: 'Signet' },
+	// { id: 'regtest', label: 'Regtest' }
+] as const;
+export type Network = (typeof NETWORKS)[number]['id'];
+export const DEFAULT_NETWORK: Network = 'mainnet';
+
+export function isNetwork(value: unknown): value is Network {
+	return NETWORKS.some((n) => n.id === value);
 }
 
-export const DEFAULT_DESCRIPTORS: WalletDescriptors = {
-	external:
-		"tr([12071a7c/86'/1'/0']tpubDCaLkqfh67Qr7ZuRrUNrCYQ54sMjHfsJ4yQSGb3aBr1yqt3yXpamRBUwnGSnyNnxQYu7rqeBiPfw3mjBcFNX4ky2vhjj9bDrGstkfUbLB9T/0/*)#z3x5097m",
-	internal:
-		"tr([12071a7c/86'/1'/0']tpubDCaLkqfh67Qr7ZuRrUNrCYQ54sMjHfsJ4yQSGb3aBr1yqt3yXpamRBUwnGSnyNnxQYu7rqeBiPfw3mjBcFNX4ky2vhjj9bDrGstkfUbLB9T/1/*)#n9r4jswr"
-};
+/** A watch-only wallet: its network, and receive (external) and change (internal) descriptors. */
+export interface WalletConfig {
+	network: Network;
+	external: string;
+	internal: string;
+	/**
+	 * Wallet birthday: the first block height that can hold its transactions.
+	 * Only block-by-block sync (RPC) uses it, on a fresh wallet; 0 = genesis.
+	 */
+	startHeight: number;
+}
 
-/** Where the last applied descriptor pair is remembered. */
-const SELECTED_DESCRIPTORS_KEY = 'wallet:descriptors';
-/** Where the default wallet lived before wallets were keyed by descriptors. */
-const LEGACY_STORAGE_KEY = `walletData:${NETWORK}`;
+/** Env var holding the default descriptor pair of `network`. */
+export function defaultDescriptorsEnvVar(network: Network): string {
+	return network === 'mainnet'
+		? 'VITE_DEFAULT_DESCRIPTORS_MAINNET'
+		: 'VITE_DEFAULT_DESCRIPTORS_TESTNET';
+}
+
+/**
+ * Default descriptor pair per network, set at build time as
+ * `"<external> <internal>"` (descriptors never contain whitespace, but may
+ * contain commas). Test networks share one pair, since tpub keys are valid on
+ * all of them. Returns null when unset or malformed.
+ */
+export function defaultDescriptors(
+	network: Network
+): Pick<WalletConfig, 'external' | 'internal'> | null {
+	// Literal `import.meta.env.X` accesses: Vite only inlines those.
+	const value =
+		network === 'mainnet'
+			? import.meta.env.VITE_DEFAULT_DESCRIPTORS_MAINNET
+			: import.meta.env.VITE_DEFAULT_DESCRIPTORS_TESTNET;
+	const parts = (value ?? '').split(/\s+/).filter(Boolean);
+	if (parts.length === 0) return null;
+	if (parts.length !== 2) {
+		console.warn(
+			`${defaultDescriptorsEnvVar(network)} must be "<external> <internal>", separated by a space.`
+		);
+		return null;
+	}
+	return { external: parts[0], internal: parts[1] };
+}
+
+const SELECTED_NETWORK_KEY = 'wallet:network';
+/** Where the last applied wallet config of each network is remembered. */
+const selectedConfigKey = (network: Network) => `wallet:config:${network}`;
 
 /**
  * cyrb53: a small, fast, non-cryptographic string hash. It only has to name a
@@ -52,9 +95,12 @@ function cyrb53(str: string): string {
 	return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16);
 }
 
-/** localStorage key of the wallet for `d` (expects normalized descriptors). */
-function storageKey(d: WalletDescriptors): string {
-	return `walletData:${NETWORK}:${cyrb53(`${d.external}\n${d.internal}`)}`;
+/**
+ * localStorage key of the wallet for `c` (expects normalized descriptors). The
+ * start height is not part of it: it doesn't change which wallet this is.
+ */
+function storageKey(c: WalletConfig): string {
+	return `walletData:${c.network}:${cyrb53(`${c.external}\n${c.internal}`)}`;
 }
 
 const Store = {
@@ -72,18 +118,6 @@ const Store = {
 	}
 };
 
-/** Moves the pre-descriptor-keys wallet (always the default pair) to its new key. */
-function migrateLegacyStore(d: WalletDescriptors): void {
-	if (!browser) return;
-	if (d.external !== DEFAULT_DESCRIPTORS.external || d.internal !== DEFAULT_DESCRIPTORS.internal) {
-		return;
-	}
-	const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
-	if (legacy === null) return;
-	if (localStorage.getItem(storageKey(d)) === null) localStorage.setItem(storageKey(d), legacy);
-	localStorage.removeItem(LEGACY_STORAGE_KEY);
-}
-
 let wasmReady: Promise<unknown> | null = null;
 
 function ensureWasm(): Promise<unknown> {
@@ -93,53 +127,98 @@ function ensureWasm(): Promise<unknown> {
 }
 
 /**
- * Validates a descriptor pair and returns it in canonical form (public keys,
- * with checksums), so equivalent inputs map to the same wallet. Throws with
- * BDK's message for invalid descriptors, and rejects private keys.
+ * Validates a descriptor pair for `network` and returns it in canonical form
+ * (public keys, with checksums), so equivalent inputs map to the same wallet.
+ * Throws with BDK's message for invalid descriptors (including keys for
+ * another network), and rejects private keys.
  */
 export async function normalizeDescriptors(
+	network: Network,
 	external: string,
 	internal: string
-): Promise<WalletDescriptors> {
+): Promise<Pick<WalletConfig, 'external' | 'internal'>> {
 	await ensureWasm();
-	return JSON.parse(normalize_descriptors(NETWORK, external, internal)) as WalletDescriptors;
+	return JSON.parse(normalize_descriptors(network, external, internal));
 }
 
-/** The last applied descriptor pair, or the default one. */
-export function loadSelectedDescriptors(): WalletDescriptors {
-	try {
-		const saved = JSON.parse(localStorage.getItem(SELECTED_DESCRIPTORS_KEY) ?? 'null');
-		if (typeof saved?.external === 'string' && typeof saved?.internal === 'string') {
-			return { external: saved.external, internal: saved.internal };
-		}
-	} catch {
-		// Storage unavailable or corrupt: use the default.
+/**
+ * Throws unless `serverGenesis` (the server's block 0 hash) is the genesis
+ * block of `network`, so a wallet never syncs from another chain.
+ */
+export async function assertServerNetwork(
+	network: Network,
+	serverGenesis: string,
+	serverLabel: string
+): Promise<void> {
+	await ensureWasm();
+	if (serverGenesis !== genesis_hash(network)) {
+		const actual = NETWORKS.find((n) => genesis_hash(n.id) === serverGenesis);
+		throw new Error(
+			`The ${serverLabel} server is on ${actual?.label ?? 'an unknown network'}, not ${network}.`
+		);
 	}
-	return DEFAULT_DESCRIPTORS;
 }
 
-export function saveSelectedDescriptors(d: WalletDescriptors): void {
+/** The last selected network, or {@link DEFAULT_NETWORK}. */
+export function loadSelectedNetwork(): Network {
 	try {
-		localStorage.setItem(SELECTED_DESCRIPTORS_KEY, JSON.stringify(d));
+		const saved = localStorage.getItem(SELECTED_NETWORK_KEY);
+		if (isNetwork(saved)) return saved;
+	} catch {
+		// Storage unavailable: use the default.
+	}
+	return DEFAULT_NETWORK;
+}
+
+export function saveSelectedNetwork(network: Network): void {
+	try {
+		localStorage.setItem(SELECTED_NETWORK_KEY, network);
 	} catch {
 		// Storage unavailable: the choice just isn't remembered.
 	}
 }
 
-/** Loads the wallet persisted for `d` or creates a fresh one (no network access). */
-export async function loadOrCreateWallet(d: WalletDescriptors): Promise<WalletWrapper> {
-	await ensureWasm();
-	migrateLegacyStore(d);
-	const stored = Store.load(storageKey(d));
-	if (stored) {
-		return WalletWrapper.load(stored, d.external, d.internal);
+/** The last applied (already normalized) wallet config of `network`, if any. */
+export function loadSelectedConfig(network: Network): WalletConfig | null {
+	try {
+		// Before networks were selectable, the (regtest) pair lived under this key.
+		const legacy = network === 'regtest' ? localStorage.getItem('wallet:descriptors') : null;
+		const saved = JSON.parse(localStorage.getItem(selectedConfigKey(network)) ?? legacy ?? 'null');
+		if (typeof saved?.external === 'string' && typeof saved?.internal === 'string') {
+			const startHeight = Number.isInteger(saved.startHeight) ? saved.startHeight : 0;
+			return { network, external: saved.external, internal: saved.internal, startHeight };
+		}
+	} catch {
+		// Storage unavailable or corrupt: nothing remembered.
 	}
-	return new WalletWrapper(NETWORK, d.external, d.internal);
+	return null;
+}
+
+export function saveSelectedConfig(c: WalletConfig): void {
+	try {
+		const { external, internal, startHeight } = c;
+		localStorage.setItem(
+			selectedConfigKey(c.network),
+			JSON.stringify({ external, internal, startHeight })
+		);
+	} catch {
+		// Storage unavailable: the choice just isn't remembered.
+	}
+}
+
+/** Loads the wallet persisted for `c` or creates a fresh one (no network access). */
+export async function loadOrCreateWallet(c: WalletConfig): Promise<WalletWrapper> {
+	await ensureWasm();
+	const stored = Store.load(storageKey(c));
+	if (stored) {
+		return WalletWrapper.load(stored, c.external, c.internal);
+	}
+	return new WalletWrapper(c.network, c.external, c.internal);
 }
 
 /** Persists the wallet's staged changes, merging with any previous data. */
-export function persist(wallet: WalletWrapper, d: WalletDescriptors): void {
-	const key = storageKey(d);
+export function persist(wallet: WalletWrapper, c: WalletConfig): void {
+	const key = storageKey(c);
 	const previous = Store.load(key);
 	Store.save(key, previous ? wallet.take_merged(previous) : wallet.take_staged());
 }
@@ -150,13 +229,13 @@ export function getBalanceSats(wallet: WalletWrapper): bigint {
 }
 
 /** Reveals the next external address and persists the updated changeset. */
-export function revealNextAddress(wallet: WalletWrapper, d: WalletDescriptors): string {
+export function revealNextAddress(wallet: WalletWrapper, c: WalletConfig): string {
 	const address = wallet.reveal_next_address();
-	persist(wallet, d);
+	persist(wallet, c);
 	return address;
 }
 
-/** Clears the persisted data of the wallet for `d` (forces a fresh sync next load). */
-export function resetWallet(d: WalletDescriptors): void {
-	Store.clear(storageKey(d));
+/** Clears the persisted data of the wallet for `c` (forces a fresh sync next load). */
+export function resetWallet(c: WalletConfig): void {
+	Store.clear(storageKey(c));
 }

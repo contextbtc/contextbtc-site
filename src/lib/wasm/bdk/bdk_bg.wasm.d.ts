@@ -2,6 +2,7 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const __wbg_walletwrapper_free: (a: number, b: number) => void;
+export const genesis_hash: (a: number, b: number) => [number, number, number, number];
 export const normalize_descriptors: (
 	a: number,
 	b: number,
