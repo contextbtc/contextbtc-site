@@ -69,6 +69,12 @@ export class WalletWrapper {
 }
 
 /**
+ * Hash of `network`'s genesis block (hex), to check a server is on the
+ * chain the wallet expects.
+ */
+export function genesis_hash(network: string): string;
+
+/**
  * Validates a watch-only descriptor pair for `network` and returns it in
  * canonical form (public keys, with checksums) as a JSON
  * `{external, internal}` string, so equivalent inputs map to one wallet.
@@ -83,6 +89,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
 	readonly memory: WebAssembly.Memory;
 	readonly __wbg_walletwrapper_free: (a: number, b: number) => void;
+	readonly genesis_hash: (a: number, b: number) => [number, number, number, number];
 	readonly normalize_descriptors: (
 		a: number,
 		b: number,

@@ -3,6 +3,7 @@
 	import SEO from '$lib/components/SEO.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import QrCode from '$lib/components/QrCode.svelte';
@@ -14,12 +15,17 @@
 		revealNextAddress,
 		resetWallet,
 		normalizeDescriptors,
-		loadSelectedDescriptors,
-		saveSelectedDescriptors,
-		DEFAULT_DESCRIPTORS,
-		NETWORK,
+		defaultDescriptors,
+		defaultDescriptorsEnvVar,
+		loadSelectedNetwork,
+		saveSelectedNetwork,
+		loadSelectedConfig,
+		saveSelectedConfig,
+		NETWORKS,
+		DEFAULT_NETWORK,
 		RELAYS,
-		type WalletDescriptors
+		type Network,
+		type WalletConfig
 	} from '$lib/services/bdkWallet';
 	import {
 		SYNC_BACKENDS,
@@ -31,23 +37,29 @@
 	const BACKEND_STORAGE_KEY = 'wallet:syncBackend';
 
 	let backend = $state<SyncBackend>(DEFAULT_BACKEND);
-	/** The descriptors of the wallet being shown; edited via the inputs below. */
-	let descriptors = $state<WalletDescriptors>(DEFAULT_DESCRIPTORS);
-	let externalInput = $state(DEFAULT_DESCRIPTORS.external);
-	let internalInput = $state(DEFAULT_DESCRIPTORS.internal);
+	let network = $state<Network>(DEFAULT_NETWORK);
+	/** The applied wallet: null until the network has a descriptor pair. */
+	let config = $state<WalletConfig | null>(null);
+	let externalInput = $state('');
+	let internalInput = $state('');
+	let startHeightInput = $state('0');
 	let descriptorError = $state<string | null>(null);
 	let applyingDescriptors = $state(false);
 	let wallet = $state<WalletWrapper | null>(null);
 	let balance = $state<bigint>(0n);
 	let address = $state<string | null>(null);
-	let status = $state<'syncing' | 'ready' | 'error'>('syncing');
+	// 'idle': no wallet to sync yet (no descriptors for this network).
+	let status = $state<'idle' | 'syncing' | 'ready' | 'error'>('idle');
 	let error = $state<string | null>(null);
 	let progress = $state<SyncProgress | null>(null);
 	let caughtUp = $state(false);
 
+	const networkLabel = $derived(NETWORKS.find((n) => n.id === network)?.label ?? network);
 	const balanceDisplay = $derived(balance.toLocaleString('en-US'));
-	const descriptorsEdited = $derived(
-		externalInput.trim() !== descriptors.external || internalInput.trim() !== descriptors.internal
+	const inputsEdited = $derived(
+		externalInput.trim() !== (config?.external ?? '') ||
+			internalInput.trim() !== (config?.internal ?? '') ||
+			startHeightInput.trim() !== String(config?.startHeight ?? 0)
 	);
 	const progressPct = $derived(
 		progress && progress.total > 0
@@ -56,13 +68,14 @@
 	);
 
 	// Backends share one persisted wallet, so only one sync may run at a time:
-	// the backend selector is disabled while syncing.
+	// the backend, network and descriptor controls are disabled while syncing.
 	async function runSync() {
+		if (!config) return;
 		status = 'syncing';
 		error = null;
 		progress = null;
 		try {
-			const result = await backend.sync(descriptors, (p) => (progress = p));
+			const result = await backend.sync(config, (p) => (progress = p));
 			wallet = result.wallet;
 			balance = getBalanceSats(result.wallet);
 			caughtUp = result.caughtUp;
@@ -89,21 +102,77 @@
 		wallet = null;
 		balance = 0n;
 		address = null;
+		progress = null;
 		caughtUp = false;
 	}
 
-	/** Validates the inputs and, if they name another wallet, switches to and syncs it. */
+	function fillInputs(c: Pick<WalletConfig, 'external' | 'internal'> | null, startHeight = 0) {
+		externalInput = c?.external ?? '';
+		internalInput = c?.internal ?? '';
+		startHeightInput = String(startHeight);
+	}
+
+	/**
+	 * Shows `next`'s wallet: the last one applied on it, else the build-time
+	 * default pair, else nothing (the user has to enter descriptors).
+	 */
+	async function loadNetwork(next: Network) {
+		network = next;
+		clearWalletState();
+		descriptorError = null;
+		error = null;
+		config = loadSelectedConfig(next);
+		if (!config) {
+			const defaults = defaultDescriptors(next);
+			if (defaults) {
+				try {
+					const normalized = await normalizeDescriptors(next, defaults.external, defaults.internal);
+					config = { network: next, ...normalized, startHeight: 0 };
+				} catch (e) {
+					fillInputs(defaults);
+					descriptorError = `The default descriptors for ${networkLabel} are invalid: ${
+						e instanceof Error ? e.message : String(e)
+					}`;
+				}
+			}
+		}
+		if (config) {
+			fillInputs(config, config.startHeight);
+			await runSync();
+		} else {
+			if (!descriptorError) fillInputs(null);
+			status = 'idle';
+		}
+	}
+
+	async function selectNetwork(next: Network) {
+		if (next === network || status === 'syncing' || applyingDescriptors) return;
+		saveSelectedNetwork(next);
+		await loadNetwork(next);
+	}
+
+	/**
+	 * Validates the inputs and, if they name another wallet, switches to and
+	 * syncs it. A new start height alone is just saved: it only applies to a
+	 * fresh wallet (first sync, or after "Reset & rescan").
+	 */
 	async function applyDescriptors() {
 		if (status === 'syncing') return;
 		descriptorError = null;
+		const startHeight = Number(startHeightInput.trim() || '0');
+		if (!Number.isInteger(startHeight) || startHeight < 0) {
+			descriptorError = 'Start height must be a whole number, 0 or more.';
+			return;
+		}
 		applyingDescriptors = true;
 		try {
-			const next = await normalizeDescriptors(externalInput, internalInput);
-			externalInput = next.external;
-			internalInput = next.internal;
-			if (next.external === descriptors.external && next.internal === descriptors.internal) return;
-			descriptors = next;
-			saveSelectedDescriptors(next);
+			const normalized = await normalizeDescriptors(network, externalInput, internalInput);
+			const next: WalletConfig = { network, ...normalized, startHeight };
+			fillInputs(next, startHeight);
+			const sameWallet = config?.external === next.external && config?.internal === next.internal;
+			config = next;
+			saveSelectedConfig(next);
+			if (sameWallet) return;
 			clearWalletState();
 			await runSync();
 		} catch (e) {
@@ -114,18 +183,23 @@
 	}
 
 	function restoreDefaultDescriptors() {
-		externalInput = DEFAULT_DESCRIPTORS.external;
-		internalInput = DEFAULT_DESCRIPTORS.internal;
+		const defaults = defaultDescriptors(network);
+		if (!defaults) {
+			descriptorError = `No default descriptors for ${networkLabel}: set ${defaultDescriptorsEnvVar(network)} in .env.`;
+			return;
+		}
+		fillInputs(defaults);
 		applyDescriptors();
 	}
 
 	function onRevealAddress() {
-		if (!wallet) return;
-		address = revealNextAddress(wallet, descriptors);
+		if (!wallet || !config) return;
+		address = revealNextAddress(wallet, config);
 	}
 
 	async function onReset() {
-		resetWallet(descriptors);
+		if (!config) return;
+		resetWallet(config);
 		clearWalletState();
 		await runSync();
 	}
@@ -137,10 +211,7 @@
 		} catch {
 			// Storage unavailable: keep the default backend.
 		}
-		descriptors = loadSelectedDescriptors();
-		externalInput = descriptors.external;
-		internalInput = descriptors.internal;
-		runSync();
+		loadNetwork(loadSelectedNetwork());
 	});
 </script>
 
@@ -158,15 +229,31 @@
 			target="_blank"
 			rel="noopener noreferrer"
 			class="underline underline-offset-4 hover:text-foreground">ContextVM</a
-		>. Watch-only demo on <span class="font-medium capitalize">{NETWORK}</span>.
+		>.
 	</p>
+
+	<div class="mb-6">
+		<div class="flex flex-wrap gap-2" role="group" aria-label="Network">
+			{#each NETWORKS as option (option.id)}
+				<Button
+					size="sm"
+					variant={option.id === network ? 'default' : 'outline'}
+					aria-pressed={option.id === network}
+					disabled={status === 'syncing' || applyingDescriptors}
+					onclick={() => selectNetwork(option.id)}
+				>
+					{option.label}
+				</Button>
+			{/each}
+		</div>
+	</div>
 
 	<Card.Root class="mb-6">
 		<Card.Header>
 			<Card.Title class="text-lg">Descriptors</Card.Title>
 			<Card.Description>
-				The watch-only wallet to sync: public descriptors only. Each pair is kept as its own wallet
-				in this browser.
+				The {networkLabel} watch-only wallet to sync: public descriptors only. Each pair is kept as its
+				own wallet in this browser.
 			</Card.Description>
 		</Card.Header>
 		<Card.Content class="grid gap-4">
@@ -190,13 +277,28 @@
 					class="font-mono text-xs break-all"
 				/>
 			</div>
+			<div class="grid gap-2">
+				<Label for="start-height">Start height (wallet birthday)</Label>
+				<Input
+					id="start-height"
+					inputmode="numeric"
+					pattern="[0-9]*"
+					bind:value={startHeightInput}
+					class="max-w-48"
+				/>
+				<p class="text-xs text-muted-foreground">
+					First block that can hold this wallet's transactions. Bitcoin RPC sync starts there on a
+					fresh wallet (0 scans from genesis, which takes very long on mainnet); Electrum doesn't
+					need it.
+				</p>
+			</div>
 			{#if descriptorError}
 				<p class="text-sm break-words text-destructive">{descriptorError}</p>
 			{/if}
 			<div class="flex flex-wrap gap-2">
 				<Button
 					size="sm"
-					disabled={status === 'syncing' || applyingDescriptors || !descriptorsEdited}
+					disabled={status === 'syncing' || applyingDescriptors || !inputsEdited}
 					onclick={applyDescriptors}
 				>
 					Apply
@@ -230,7 +332,11 @@
 		<p class="text-sm text-muted-foreground">{backend.description}</p>
 	</div>
 
-	{#if status === 'syncing'}
+	{#if status === 'idle'}
+		<div class="rounded-lg border p-4 text-sm text-muted-foreground">
+			Enter a {networkLabel} descriptor pair above and click Apply to load a wallet.
+		</div>
+	{:else if status === 'syncing'}
 		<div class="rounded-lg border p-4">
 			<div class="mb-3 flex items-center gap-2 text-muted-foreground">
 				<Loader class="size-4 animate-spin" />

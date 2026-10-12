@@ -20,6 +20,8 @@ interface ImportMetaEnv {
 	readonly VITE_CONTEXTBTC_ELECTRS_PUBKEY?: string;
 	readonly VITE_CONTEXTBTC_RELAYS?: string;
 	readonly VITE_METADATA_RELAYS?: string;
+	readonly VITE_DEFAULT_DESCRIPTORS_MAINNET?: string;
+	readonly VITE_DEFAULT_DESCRIPTORS_TESTNET?: string;
 	readonly VITE_CASHU_MINT_URL?: string;
 }
 
