@@ -9,6 +9,7 @@
 	import { LLMService } from '$lib/services/llm';
 	import { AgentOrchestrator } from '$lib/services/agent-orchestrator';
 	import { CHAT_SERVER, chatMcpServer } from '$lib/services/chatMcpServer.svelte';
+	import { bdkToolSource } from '$lib/services/bdkTools';
 	import { clearMessages, loadMessages, saveMessages } from '$lib/services/chat-history';
 	import { cashuWallet } from '$lib/services/cashu-wallet.svelte';
 	import { isInsufficientFundsMessage } from '$lib/services/routstr-payment';
@@ -91,7 +92,10 @@
 	$effect(() => {
 		if (!llmService) {
 			llmService = new LLMService(config);
-			orchestrator = new AgentOrchestrator({ llmService, toolSource: chatMcpServer });
+			orchestrator = new AgentOrchestrator({
+				llmService,
+				toolSources: [chatMcpServer, bdkToolSource]
+			});
 		} else {
 			llmService.reconfigure(config);
 		}

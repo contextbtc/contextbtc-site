@@ -142,6 +142,34 @@ export async function normalizeDescriptors(
 }
 
 /**
+ * Derives `count` addresses of `keychain` starting at index `start`, without
+ * loading or persisting any wallet.
+ */
+export async function peekAddresses(
+	network: Network,
+	external: string,
+	internal: string,
+	keychain: 'external' | 'internal',
+	start: number,
+	count: number
+): Promise<{ index: number; address: string }[]> {
+	await ensureWasm();
+	// `peek_address` only covers the external keychain: swap to reach the internal one.
+	const wallet =
+		keychain === 'external'
+			? new WalletWrapper(network, external, internal)
+			: new WalletWrapper(network, internal, external);
+	try {
+		return Array.from({ length: count }, (_, i) => ({
+			index: start + i,
+			address: wallet.peek_address(start + i)
+		}));
+	} finally {
+		wallet.free();
+	}
+}
+
+/**
  * Throws unless `serverGenesis` (the server's block 0 hash) is the genesis
  * block of `network`, so a wallet never syncs from another chain.
  */

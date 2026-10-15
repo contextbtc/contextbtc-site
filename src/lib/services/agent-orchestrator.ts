@@ -1,15 +1,20 @@
 import type { CallToolResult, Tool } from '@contextvm/mcp-sdk/types.js';
-import type { ChatMessage, ToolCallData } from '$lib/types/chat-types';
+import type { ChatMessage, ToolApprovalTier, ToolCallData } from '$lib/types/chat-types';
 import type { LLMService, SendMessageResult } from '$lib/services/llm';
 import { ToolRegistry, type ToolResolveResult } from '$lib/services/mcp-openai-bridge';
 
 /**
- * The single MCP server the chat talks to. Kept as an interface (rather than
- * importing the singleton) so the orchestrator stays free of `.svelte.ts` runes
- * and is unit-testable without the Svelte runtime.
+ * Something that serves MCP tools to the chat: the remote ContextVM server or
+ * a set of in-browser tools. Kept as an interface (rather than importing the
+ * singletons) so the orchestrator stays free of `.svelte.ts` runes and is
+ * unit-testable without the Svelte runtime.
  */
 export interface ChatToolSource {
 	readonly serverName: string | null;
+	/** Where the tools run, shown to the model (e.g. "over Nostr"). */
+	readonly description?: string;
+	/** Per-tool approval tiers; tools not listed require approval. */
+	readonly tierOverrides?: Map<string, ToolApprovalTier>;
 	listAllTools(): Promise<Tool[]>;
 	callTool(
 		toolName: string,
@@ -22,6 +27,12 @@ const DEFAULT_TOOL_APPROVAL_TIMEOUT_MS = 120_000;
 const DEFAULT_REGISTRY_CACHE_MS = 60_000;
 const DEFAULT_TOOL_CONCURRENCY = 4;
 
+type BuiltRegistry = {
+	registry: ToolRegistry;
+	/** Source of each registered server name, to route tool calls back to it. */
+	sources: Map<string, ChatToolSource>;
+};
+
 type PendingApproval = {
 	resolve: () => void;
 	reject: (reason: Error) => void;
@@ -29,7 +40,7 @@ type PendingApproval = {
 
 export type AgentOrchestratorCallbacks = {
 	onPreparingToolsChange?: (preparing: boolean) => void;
-	/** The server could not be reached; this turn runs without its tools. */
+	/** A tool source could not be reached; this turn runs without its tools. */
 	onToolsUnavailable?: (error: string) => void;
 	onAssistantAdded?: (assistant: ChatMessage) => void;
 	onAssistantDelta?: (assistant: ChatMessage, delta: string) => void;
@@ -61,20 +72,20 @@ export class AgentOrchestrator {
 	private toolApprovalTimeoutMs: number;
 	private registryCacheMs: number;
 	private toolConcurrency: number;
-	private registryCache: { registry: ToolRegistry; timestamp: number } | null = null;
+	private registryCache: (BuiltRegistry & { timestamp: number }) | null = null;
 	private pendingApprovals = new Map<string, PendingApproval>();
 	private llmService: LLMService;
-	private toolSource: ChatToolSource;
+	private toolSources: ChatToolSource[];
 
 	constructor(options: {
 		llmService: LLMService;
-		toolSource: ChatToolSource;
+		toolSources: ChatToolSource[];
 		toolApprovalTimeoutMs?: number;
 		registryCacheMs?: number;
 		toolConcurrency?: number;
 	}) {
 		this.llmService = options.llmService;
-		this.toolSource = options.toolSource;
+		this.toolSources = options.toolSources;
 		this.toolApprovalTimeoutMs = options.toolApprovalTimeoutMs ?? DEFAULT_TOOL_APPROVAL_TIMEOUT_MS;
 		this.registryCacheMs = options.registryCacheMs ?? DEFAULT_REGISTRY_CACHE_MS;
 		this.toolConcurrency = Math.max(1, options.toolConcurrency ?? DEFAULT_TOOL_CONCURRENCY);
@@ -104,7 +115,7 @@ export class AgentOrchestrator {
 		let lastModel: string | null = null;
 
 		try {
-			const registry = await this.getOrBuildRegistry(callbacks);
+			const { registry, sources } = await this.getOrBuildRegistry(callbacks);
 			const tools = registry.getOpenAITools();
 			const systemContext = registry.getSystemContext();
 			const systemMessage = systemContext
@@ -175,6 +186,7 @@ export class AgentOrchestrator {
 					callbacks?.onAssistantUpdated?.(assistant);
 
 					const toolResultMessages = await this.executeToolCalls(
+						sources,
 						resolvedMap,
 						assistant,
 						result.toolCalls,
@@ -242,38 +254,51 @@ export class AgentOrchestrator {
 	}
 
 	/**
-	 * Builds the tool registry, or returns an empty one when the server is
-	 * unreachable.
+	 * Builds the tool registry from every source that answers.
 	 *
-	 * A failed build is never cached: the next message retries the connection
-	 * instead of pretending for `registryCacheMs` that the server has no tools.
-	 * The failure is reported through `onToolsUnavailable` so the turn can
-	 * continue while making it plain that the server was not consulted.
+	 * A source that fails is skipped for this turn and reported through
+	 * `onToolsUnavailable`, so in-browser tools keep working while the remote
+	 * server is unreachable. A partial build is never cached: the next message
+	 * retries instead of pretending for `registryCacheMs` that the server has
+	 * no tools.
 	 */
-	private async getOrBuildRegistry(callbacks?: AgentOrchestratorCallbacks): Promise<ToolRegistry> {
+	private async getOrBuildRegistry(callbacks?: AgentOrchestratorCallbacks): Promise<BuiltRegistry> {
 		const now = Date.now();
 		if (this.registryCache && now - this.registryCache.timestamp < this.registryCacheMs) {
-			return this.registryCache.registry;
+			return this.registryCache;
 		}
 
 		callbacks?.onPreparingToolsChange?.(true);
 		try {
 			const registry = new ToolRegistry();
+			const sources = new Map<string, ChatToolSource>();
+			const results = await Promise.allSettled(
+				this.toolSources.map((source) => source.listAllTools())
+			);
 
-			let tools;
-			try {
-				tools = await this.toolSource.listAllTools();
-			} catch (error) {
-				const message = error instanceof Error ? error.message : 'Failed to list server tools';
-				console.warn('Failed to list server tools:', error);
-				callbacks?.onToolsUnavailable?.(message);
-				return registry;
+			let allListed = true;
+			results.forEach((result, index) => {
+				const source = this.toolSources[index];
+				if (result.status === 'rejected') {
+					allListed = false;
+					const error = result.reason;
+					const message = error instanceof Error ? error.message : 'Failed to list server tools';
+					console.warn('Failed to list server tools:', error);
+					callbacks?.onToolsUnavailable?.(message);
+					return;
+				}
+
+				// Read the name only once listed — for a remote server `listAllTools` is what resolves it.
+				const serverName = source.serverName ?? `mcp_server_${index}`;
+				sources.set(serverName, source);
+				registry.register(serverName, result.value, source.tierOverrides, source.description);
+			});
+
+			const built = { registry, sources };
+			if (allListed) {
+				this.registryCache = { ...built, timestamp: Date.now() };
 			}
-
-			// Read the name only once connected — `listAllTools` is what resolves it.
-			registry.register(this.toolSource.serverName ?? 'mcp_server', tools);
-			this.registryCache = { registry, timestamp: Date.now() };
-			return registry;
+			return built;
 		} finally {
 			callbacks?.onPreparingToolsChange?.(false);
 		}
@@ -383,6 +408,7 @@ export class AgentOrchestrator {
 	}
 
 	private async executeToolCalls(
+		sources: Map<string, ChatToolSource>,
 		resolvedMap: Map<string, ToolResolveResult>,
 		assistantMessage: ChatMessage,
 		toolCalls: NonNullable<SendMessageResult['toolCalls']>,
@@ -424,7 +450,11 @@ export class AgentOrchestrator {
 				throwIfAborted();
 
 				markStatus(toolCall.id, 'running');
-				const result = await this.toolSource.callTool(
+				const source = sources.get(resolved.value.serverName);
+				if (!source) {
+					throw new Error(`No tool source for ${resolved.value.serverName}`);
+				}
+				const result = await source.callTool(
 					resolved.value.originalToolName,
 					resolved.value.args,
 					signal
