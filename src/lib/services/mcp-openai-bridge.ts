@@ -84,21 +84,32 @@ export function mcpToolToOpenAI(tool: Tool, serverName: string): ChatCompletionT
 }
 
 /**
- * Maps the tools of the single hardcoded MCP server onto OpenAI function calls.
+ * Maps the tools of the chat's tool sources (the remote MCP server and the
+ * in-browser tools) onto OpenAI function calls.
  *
- * Tool names are not namespaced: with one server there is nothing to collide
- * with, and the model gets to see the server's own vocabulary.
+ * Tool names are not namespaced, so the model sees each server's own
+ * vocabulary; on a name clash the first registered tool wins.
  */
 export class ToolRegistry {
 	private mappings = new Map<string, ToolMapping>();
+	private serverDescriptions = new Map<string, string | undefined>();
 
 	public register(
 		serverName: string,
 		tools: Tool[],
-		tierOverrides?: Map<string, ToolApprovalTier>
+		tierOverrides?: Map<string, ToolApprovalTier>,
+		serverDescription?: string
 	): void {
+		this.serverDescriptions.set(serverName, serverDescription);
 		for (const tool of tools) {
 			const functionName = sanitizeFunctionName(tool.name);
+			const existing = this.mappings.get(functionName);
+			if (existing) {
+				console.warn(
+					`Tool ${functionName} from ${serverName} clashes with one from ${existing.serverName}; skipped.`
+				);
+				continue;
+			}
 
 			let validator: ValidateFunction<unknown> | undefined;
 			if (tool.inputSchema && typeof tool.inputSchema === 'object') {
@@ -165,18 +176,35 @@ export class ToolRegistry {
 	}
 
 	public getSystemContext(): string {
-		const names = [...this.mappings.keys()].sort();
-		if (names.length === 0) {
+		if (this.mappings.size === 0) {
 			return '';
 		}
 
-		const serverName = [...this.mappings.values()][0].serverName;
+		const namesByServer = new Map<string, string[]>();
+		for (const [name, mapping] of this.mappings) {
+			namesByServer.set(mapping.serverName, [
+				...(namesByServer.get(mapping.serverName) ?? []),
+				name
+			]);
+		}
+
+		const sections = [...namesByServer].map(([serverName, names]) => {
+			const description = this.serverDescriptions.get(serverName);
+			return [
+				`The "${serverName}" MCP server${description ? ` (${description})` : ''} exposes these tools:`,
+				names
+					.sort()
+					.map((name) => `- ${name}`)
+					.join('\n')
+			].join('\n');
+		});
 
 		return [
-			`You are connected to the "${serverName}" MCP server over Nostr, which exposes these tools:`,
-			names.map((name) => `- ${name}`).join('\n'),
+			'You have access to the following tools.',
 			'',
-			'Use them whenever the user asks to query or interact with that server.',
+			sections.join('\n\n'),
+			'',
+			'Use them whenever the user asks to query or interact with what they provide.',
 			'Always explain what you are doing before and after calling a tool.'
 		].join('\n');
 	}
@@ -187,5 +215,6 @@ export class ToolRegistry {
 
 	public clear(): void {
 		this.mappings.clear();
+		this.serverDescriptions.clear();
 	}
 }

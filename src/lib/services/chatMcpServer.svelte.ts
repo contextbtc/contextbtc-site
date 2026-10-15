@@ -37,6 +37,7 @@ export interface McpConnectionState {
 class ChatMcpServerService {
 	public state = $state<McpConnectionState>({ connected: false, loading: false, error: null });
 	public serverName = $state<string | null>(null);
+	public readonly description = 'reached over Nostr via ContextVM';
 
 	private client: Client | null = null;
 	private connectPromise: Promise<Client | null> | null = null;
