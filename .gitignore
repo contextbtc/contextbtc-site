@@ -24,6 +24,8 @@ vite.config.ts.timestamp-*
 
 # Rust / WASM
 wallet-wasm/target
+hal-wasm/target
+/src/lib/wasm/hal
 /src/lib/wasm/bdk/.gitignore
 
 # Nix

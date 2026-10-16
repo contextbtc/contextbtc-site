@@ -24,6 +24,7 @@
 		"dev": "vite dev",
 		"build": "vite build",
 		"build:wasm": "wasm-pack build wallet-wasm --target web --out-dir ../src/lib/wasm/bdk --out-name bdk",
+		"build:hal": "./hal-wasm/build.sh && mkdir -p src/lib/wasm/hal && cp hal-wasm/web/hal.wasm hal-wasm/web/hal.js hal-wasm/web/hal.d.ts src/lib/wasm/hal/",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -61,6 +62,7 @@
 		"vite": "^7.3.1"
 	},
 	"dependencies": {
+		"@bjorn3/browser_wasi_shim": "0.4.2",
 		"@cashu/cashu-ts": "4.11.0",
 		"@contextvm/mcp-sdk": "1.30.0",
 		"@contextvm/sdk": "0.14.3",
