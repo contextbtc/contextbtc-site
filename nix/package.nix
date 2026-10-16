@@ -2,6 +2,7 @@
 , stdenvNoCC
 , bun
 , nodejs
+, halWasm
 ,
 }:
 
@@ -25,6 +26,9 @@ let
       (lib.fileset.maybeMissing ../.svelte-kit)
       (lib.fileset.maybeMissing ../wallet-wasm/target)
       (lib.fileset.maybeMissing ../result)
+      # Built separately as halWasm and copied in below.
+      (lib.fileset.maybeMissing ../hal-wasm)
+      (lib.fileset.maybeMissing ../src/lib/wasm/hal)
     ]);
   };
 
@@ -63,7 +67,7 @@ let
     outputHashAlgo = "sha256";
     # Update whenever bun.lock changes: set to lib.fakeHash, rebuild, copy the
     # "got:" hash Nix reports.
-    outputHash = "sha256-3/XJ8ArRThGSIYJEtXedPpjwo4HYVAMVTQmJZZ49opE=";
+    outputHash = "sha256-IZZWenpqIRwLoHuRmaAtcOFMNoBTdD57VdpCB2YleK0=";
   };
 in
 stdenvNoCC.mkDerivation {
@@ -84,6 +88,11 @@ stdenvNoCC.mkDerivation {
     # don't resolve in the build sandbox. The .bin entries are symlinks (which
     # patchShebangs skips), so patch the real files across the tree.
     patchShebangs node_modules
+
+    # hal.wasm + hal.js from the hal-wasm submodule (not committed, unlike bdk).
+    mkdir -p src/lib/wasm/hal
+    cp ${halWasm}/* src/lib/wasm/hal/
+    chmod -R u+w src/lib/wasm/hal
 
     runHook postConfigure
   '';

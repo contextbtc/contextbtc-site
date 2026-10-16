@@ -1,0 +1,3 @@
+[submodule "hal-wasm"]
+	path = hal-wasm
+	url = https://github.com/contextbtc/hal-wasm

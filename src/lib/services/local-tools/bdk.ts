@@ -1,5 +1,5 @@
-import { NETWORKS, type Network, normalizeDescriptors, peekAddresses } from './bdkWallet';
-import { defineLocalTool, jsonResult, LocalToolSource } from './local-tools';
+import { NETWORKS, type Network, normalizeDescriptors, peekAddresses } from '../bdkWallet';
+import { defineLocalTool, jsonResult, LocalToolSource } from './local-tool-source';
 
 const MAX_DERIVE_COUNT = 100;
 

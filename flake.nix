@@ -2,6 +2,8 @@
   description = "ContextBTC Site — SvelteKit static site (Bun) + BDK WASM";
 
   inputs = {
+    # Include the hal-wasm submodule (and its nested hal submodule) in the source.
+    self.submodules = true;
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {
@@ -20,7 +22,7 @@
           };
 
           rustToolchain = pkgs.rust-bin.stable.latest.default.override {
-            targets = [ "wasm32-unknown-unknown" ];
+            targets = [ "wasm32-unknown-unknown" "wasm32-wasip1" ];
             extensions = [ "rust-src" ];
           };
 
@@ -30,12 +32,20 @@
           clang = pkgs.llvmPackages.clang-unwrapped;
           llvm = pkgs.llvmPackages.llvm;
 
-          contextbtc-site = pkgs.callPackage ./nix/package.nix { };
+          # hal CLI for WASI (hal.wasm + hal.js), built from the hal-wasm submodule.
+          hal-wasm = pkgs.callPackage ./hal-wasm/nix/package.nix {
+            rustPlatform = pkgs.makeRustPlatform {
+              cargo = rustToolchain;
+              rustc = rustToolchain;
+            };
+          };
+
+          contextbtc-site = pkgs.callPackage ./nix/package.nix { halWasm = hal-wasm; };
         in
         {
           packages = {
             default = contextbtc-site;
-            contextbtc-site = contextbtc-site;
+            inherit contextbtc-site hal-wasm;
           };
 
           devShells.default = pkgs.mkShell {
@@ -58,13 +68,17 @@
             CC_wasm32_unknown_unknown = "${clang}/bin/clang";
             AR_wasm32_unknown_unknown = "${llvm}/bin/llvm-ar";
             CFLAGS_wasm32_unknown_unknown = "--target=wasm32-unknown-unknown";
+            # Same for hal-wasm's wasm32-wasip1 build (`bun run build:hal`).
+            CC_wasm32_wasip1 = "${clang}/bin/clang";
+            AR_wasm32_wasip1 = "${llvm}/bin/llvm-ar";
+            inherit (hal-wasm) CFLAGS_wasm32_wasip1;
 
             shellHook = ''
               echo "ContextBTC Site dev shell"
               echo "  bun    $(bun --version)"
               echo "  rustc  $(rustc --version)"
               echo "  wasm-pack $(wasm-pack --version)"
-              echo "Run 'bun install' then 'bun run build:wasm' and 'bun run dev' to get started."
+              echo "Run 'bun install', 'bun run build:wasm', 'bun run build:hal' and 'bun run dev' to get started."
             '';
           };
 
@@ -73,8 +87,9 @@
     in
     perSystem // {
       # System-independent overlay: exposes `pkgs.contextbtc-site`.
+      # The consumer's pkgs must provide `hal-wasm` (see packages.hal-wasm).
       overlays.default = final: prev: {
-        contextbtc-site = final.callPackage ./nix/package.nix { };
+        contextbtc-site = final.callPackage ./nix/package.nix { halWasm = final.hal-wasm; };
       };
     };
 }

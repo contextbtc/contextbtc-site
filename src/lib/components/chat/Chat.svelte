@@ -9,7 +9,7 @@
 	import { LLMService } from '$lib/services/llm';
 	import { AgentOrchestrator } from '$lib/services/agent-orchestrator';
 	import { CHAT_SERVER, chatMcpServer } from '$lib/services/chatMcpServer.svelte';
-	import { bdkToolSource } from '$lib/services/bdkTools';
+	import { localToolSources } from '$lib/services/local-tools';
 	import { clearMessages, loadMessages, saveMessages } from '$lib/services/chat-history';
 	import { cashuWallet } from '$lib/services/cashu-wallet.svelte';
 	import { isInsufficientFundsMessage } from '$lib/services/routstr-payment';
@@ -94,7 +94,7 @@
 			llmService = new LLMService(config);
 			orchestrator = new AgentOrchestrator({
 				llmService,
-				toolSources: [chatMcpServer, bdkToolSource]
+				toolSources: [chatMcpServer, ...localToolSources]
 			});
 		} else {
 			llmService.reconfigure(config);
