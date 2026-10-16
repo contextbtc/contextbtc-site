@@ -29,7 +29,7 @@ export interface ResolvedToolCall {
 }
 
 /** OpenAI function names accept `[a-zA-Z0-9_-]{1,64}` only. */
-function sanitizeFunctionName(value: string): string {
+export function sanitizeFunctionName(value: string): string {
 	const sanitized = value
 		.toLowerCase()
 		.replace(/[^a-z0-9_-]+/g, '_')

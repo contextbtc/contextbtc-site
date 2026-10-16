@@ -2,6 +2,7 @@ import { NostrClientTransport, PrivateKeySigner } from '@contextvm/sdk';
 import { Client } from '@contextvm/mcp-sdk/client/index.js';
 import type { CallToolResult, ListToolsResult, Tool } from '@contextvm/mcp-sdk/types.js';
 import { SERVER_PUBKEY, SERVER_PUBKEY_ENV } from './bitcoinRpc';
+import { ELECTRS_SERVER_PUBKEY, ELECTRS_SERVER_PUBKEY_ENV } from './electrumNostr';
 import { CALL_TOOL_OPTIONS, REQUEST_TIMEOUT_MS } from './mcp-request-options';
 import { requirePubkey } from './mcpToolClient';
 import { commonRelays, requireCommonRelays } from './relay-pool';
@@ -28,16 +29,27 @@ export interface McpConnectionState {
 	error: string | null;
 }
 
+export interface McpServerConfig {
+	label: string;
+	/** Hex pubkey, npub or nprofile; empty when the env var is unset. */
+	pubkey: string;
+	/** Env var that sets `pubkey`, named in the error when it is missing. */
+	pubkeyEnv: string;
+}
+
 /**
- * Holds the one long-lived MCP client used by the chat.
+ * Holds one long-lived MCP client for a ContextVM server, exposed as a tool
+ * source for the chat and the Tools page.
  *
- * An ephemeral key is generated per connection so the chat works without a
- * Nostr login, matching the stateless client used elsewhere in the site.
+ * An ephemeral key is generated per connection so it works without a Nostr
+ * login, matching the stateless client used elsewhere in the site.
  */
-class ChatMcpServerService {
+export class McpServerToolSource {
 	public state = $state<McpConnectionState>({ connected: false, loading: false, error: null });
 	public serverName = $state<string | null>(null);
 	public readonly description = 'reached over Nostr via ContextVM';
+
+	constructor(public readonly config: McpServerConfig) {}
 
 	private client: Client | null = null;
 	private connectPromise: Promise<Client | null> | null = null;
@@ -65,7 +77,7 @@ class ChatMcpServerService {
 			const relays = requireCommonRelays();
 			const transport = new NostrClientTransport({
 				signer: new PrivateKeySigner(),
-				serverPubkey: requirePubkey(CHAT_SERVER.pubkey, SERVER_PUBKEY_ENV),
+				serverPubkey: requirePubkey(this.config.pubkey, this.config.pubkeyEnv),
 				discoveryRelayUrls: [...relays],
 				fallbackOperationalRelayUrls: [...relays],
 				isStateless: true
@@ -75,7 +87,7 @@ class ChatMcpServerService {
 			await client.connect(transport);
 
 			this.client = client;
-			this.serverName = client.getServerVersion()?.name ?? CHAT_SERVER.label;
+			this.serverName = client.getServerVersion()?.name ?? this.config.label;
 			this.state = { connected: true, loading: false, error: null };
 			return client;
 		} catch (error) {
@@ -88,7 +100,7 @@ class ChatMcpServerService {
 	private async getConnectedClientOrThrow(): Promise<Client> {
 		const client = await this.getClient();
 		if (!client) {
-			throw new Error(this.state.error ?? 'Not connected to the ContextBTC server');
+			throw new Error(this.state.error ?? `Not connected to ${this.config.label}`);
 		}
 
 		return client;
@@ -139,4 +151,15 @@ class ChatMcpServerService {
 	}
 }
 
-export const chatMcpServer = new ChatMcpServerService();
+export const chatMcpServer = new McpServerToolSource({
+	label: CHAT_SERVER.label,
+	pubkey: CHAT_SERVER.pubkey,
+	pubkeyEnv: SERVER_PUBKEY_ENV
+});
+
+/** The electrs server; only used by the Tools page (the wallet syncs through its own client). */
+export const electrsMcpServer = new McpServerToolSource({
+	label: 'ContextBTC Electrs',
+	pubkey: ELECTRS_SERVER_PUBKEY,
+	pubkeyEnv: ELECTRS_SERVER_PUBKEY_ENV
+});

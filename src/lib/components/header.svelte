@@ -15,6 +15,7 @@
 	const aboutHref = $derived<`/about`>('/about');
 	const walletHref = $derived<`/wallet`>('/wallet');
 	const chatHref = $derived<`/chat`>('/chat');
+	const toolsHref = $derived<`/tools`>('/tools');
 
 	let isMenuOpen = $state(false);
 </script>
@@ -43,6 +44,14 @@
 						: 'text-foreground/60 hover:text-primary'}"
 				>
 					Chat with Bitcoin Core
+				</a>
+				<a
+					href={resolve(toolsHref)}
+					class="transition-colors {$page.url.pathname.startsWith(resolve(toolsHref))
+						? 'font-semibold text-primary'
+						: 'text-foreground/60 hover:text-primary'}"
+				>
+					Tools
 				</a>
 				<a
 					href={resolve(walletHref)}
@@ -120,6 +129,17 @@
 						: 'text-foreground/80 hover:bg-accent hover:text-foreground'}"
 				>
 					Chat
+				</a>
+				<a
+					href={resolve(toolsHref)}
+					onclick={() => (isMenuOpen = false)}
+					class="rounded-md px-4 py-3 text-base font-medium transition-colors {$page.url.pathname.startsWith(
+						resolve(toolsHref)
+					)
+						? 'bg-primary/10 text-primary'
+						: 'text-foreground/80 hover:bg-accent hover:text-foreground'}"
+				>
+					Tools
 				</a>
 				<a
 					href={resolve(walletHref)}
