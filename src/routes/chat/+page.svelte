@@ -11,6 +11,7 @@
 		ROUTSTR_DEFAULT_MODEL,
 		ROUTSTR_PROVIDER_KEY,
 		usesCashuWallet,
+		usesFreeProxy,
 		type LLMConfig
 	} from '$lib/types/chat-types';
 	import { cashuWallet } from '$lib/services/cashu-wallet.svelte';
@@ -37,11 +38,16 @@
 		}
 	});
 
-	// First visit with an empty wallet and no key of their own: offer a top-up.
+	// First visit with an empty wallet and no way to chat yet: offer a top-up.
 	onMount(() => {
 		let timeout: ReturnType<typeof setTimeout> | undefined;
 		void cashuWallet.init().then(() => {
-			if (!cashuWallet.topupPromptSeen && cashuWallet.balance === 0 && !config.apiKey.trim()) {
+			if (
+				!cashuWallet.topupPromptSeen &&
+				cashuWallet.balance === 0 &&
+				!config.apiKey.trim() &&
+				!usesFreeProxy(config)
+			) {
 				timeout = setTimeout(() => (dialogState.dialogId ??= DIALOG_IDS.WALLET), 500);
 			}
 		});

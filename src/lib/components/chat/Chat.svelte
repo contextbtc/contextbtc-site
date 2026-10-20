@@ -2,7 +2,9 @@
 	import { onMount } from 'svelte';
 	import {
 		isAutoMode,
+		requiresApiKey,
 		usesCashuWallet,
+		usesFreeProxy,
 		type ChatMessage,
 		type LLMConfig
 	} from '$lib/types/chat-types';
@@ -61,7 +63,9 @@
 	const autoModeEnabled = $derived(isAutoMode(config));
 	const hasApiKey = $derived(config.apiKey.trim().length > 0);
 	const payingWithCashu = $derived(usesCashuWallet(config));
-	const canSend = $derived(hasApiKey || (payingWithCashu && cashuWallet.balance > 0));
+	const canSend = $derived(
+		payingWithCashu ? cashuWallet.balance > 0 : hasApiKey || !requiresApiKey(config)
+	);
 	const inputPlaceholder = $derived(
 		canSend
 			? 'Ask about the Bitcoin node...'
@@ -344,7 +348,11 @@
 					<p class="text-[11px] text-muted-foreground/70">
 						Paying per request with ecash — replies arrive in one piece once generated.
 					</p>
-				{:else if !hasApiKey}
+				{:else if usesFreeProxy(config)}
+					<p class="text-[11px] text-muted-foreground/70">
+						Free models via the ContextBTC proxy — rate limits and quality vary.
+					</p>
+				{:else if !canSend}
 					<p class="text-xs text-muted-foreground">
 						Add an API key under <span class="font-medium">Model</span> to start chatting.
 					</p>

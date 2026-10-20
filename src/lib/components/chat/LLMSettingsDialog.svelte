@@ -3,7 +3,12 @@
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { DEFAULT_LLM_CONFIG, PROVIDER_PRESETS, type LLMConfig } from '$lib/types/chat-types';
+	import {
+		DEFAULT_LLM_CONFIG,
+		PROVIDER_PRESETS,
+		usesFreeProxy,
+		type LLMConfig
+	} from '$lib/types/chat-types';
 	import { LLMService, normalizeBaseURL } from '$lib/services/llm';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
@@ -34,6 +39,9 @@
 		}
 
 		draft = { ...draft, provider: preset.key, baseURL: preset.baseURL || draft.baseURL };
+		if (usesFreeProxy(draft) && !draft.model.trim()) {
+			draft.model = 'auto';
+		}
 		models = [];
 	};
 
@@ -72,6 +80,7 @@
 	};
 
 	const isOpenRouter = $derived(draft.baseURL.toLowerCase().includes('openrouter.ai'));
+	const isFreeProxy = $derived(usesFreeProxy(draft));
 </script>
 
 <Dialog.Root bind:open>
@@ -112,16 +121,18 @@
 				<Input id="llm-base-url" bind:value={draft.baseURL} placeholder="https://..." />
 			</div>
 
-			<div class="space-y-2">
-				<Label for="llm-api-key">API key</Label>
-				<Input
-					id="llm-api-key"
-					type="password"
-					bind:value={draft.apiKey}
-					placeholder="sk-..."
-					autocomplete="off"
-				/>
-			</div>
+			{#if !isFreeProxy}
+				<div class="space-y-2">
+					<Label for="llm-api-key">API key</Label>
+					<Input
+						id="llm-api-key"
+						type="password"
+						bind:value={draft.apiKey}
+						placeholder="sk-..."
+						autocomplete="off"
+					/>
+				</div>
+			{/if}
 
 			<div class="space-y-2">
 				<div class="flex items-center justify-between">
@@ -139,7 +150,7 @@
 						<option value={model}></option>
 					{/each}
 				</datalist>
-				{#if isOpenRouter}
+				{#if isOpenRouter || isFreeProxy}
 					<p class="text-xs text-muted-foreground">
 						Use <code>auto</code> to rotate through OpenRouter's free (<code>:free</code>) models.
 					</p>

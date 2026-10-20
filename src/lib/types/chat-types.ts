@@ -35,7 +35,16 @@ export interface ProviderPreset {
 	requiresKey: boolean;
 }
 
+export const FREE_PROXY_PROVIDER_KEY = 'free-proxy';
+
 export const PROVIDER_PRESETS: ProviderPreset[] = [
+	{
+		key: FREE_PROXY_PROVIDER_KEY,
+		label: 'Free',
+		// Our free-proxy server (free-proxy/), which holds the OpenRouter key.
+		baseURL: import.meta.env.VITE_FREE_PROXY_URL?.trim() || 'http://localhost:8787/v1',
+		requiresKey: false
+	},
 	{
 		key: 'routstr',
 		label: 'Routstr',
@@ -75,21 +84,30 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
 ];
 
 /**
- * Users bring their own key via the chat's "Model" dialog. It is kept in their
- * browser's localStorage and never leaves it beyond the configured provider,
- * so there is deliberately no build-time default: this is a static site, and a
+ * Defaults to the free proxy so visitors can chat without a key. Users can
+ * bring their own key via the chat's "Model" dialog; it is kept in their
+ * browser's localStorage and never leaves it beyond the configured provider.
+ * There is deliberately no build-time key: this is a static site, and a
  * bundled key would be readable by every visitor.
  */
 export const DEFAULT_LLM_CONFIG: LLMConfig = {
-	provider: 'openrouter',
-	baseURL: 'https://openrouter.ai/api/v1',
+	provider: FREE_PROXY_PROVIDER_KEY,
+	baseURL: PROVIDER_PRESETS[0].baseURL,
 	apiKey: '',
 	model: 'auto'
 };
 
+/** The free proxy only serves OpenRouter's free models, without a user key. */
+export function usesFreeProxy(config: LLMConfig): boolean {
+	return config.provider === FREE_PROXY_PROVIDER_KEY;
+}
+
 /** Auto mode rotates OpenRouter's `:free` models so no paid credits are needed. */
 export function isAutoMode(config: LLMConfig): boolean {
-	return config.model === 'auto' && config.baseURL.toLowerCase().includes('openrouter.ai');
+	return (
+		config.model === 'auto' &&
+		(usesFreeProxy(config) || config.baseURL.toLowerCase().includes('openrouter.ai'))
+	);
 }
 
 export const ROUTSTR_PROVIDER_KEY = 'routstr';

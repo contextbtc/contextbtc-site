@@ -29,6 +29,8 @@ let
       # Built separately as halWasm and copied in below.
       (lib.fileset.maybeMissing ../hal-wasm)
       (lib.fileset.maybeMissing ../src/lib/wasm/hal)
+      # Separate server (free-proxy/), not part of the static site.
+      (lib.fileset.maybeMissing ../free-proxy)
     ]);
   };
 

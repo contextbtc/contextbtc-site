@@ -23,6 +23,7 @@ interface ImportMetaEnv {
 	readonly VITE_DEFAULT_DESCRIPTORS_MAINNET?: string;
 	readonly VITE_DEFAULT_DESCRIPTORS_TESTNET?: string;
 	readonly VITE_CASHU_MINT_URL?: string;
+	readonly VITE_FREE_PROXY_URL?: string;
 }
 
 interface ImportMeta {

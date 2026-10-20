@@ -43,11 +43,14 @@
           };
 
           contextbtc-site = pkgs.callPackage ./nix/package.nix { halWasm = hal-wasm; };
+
+          # OpenRouter free-model proxy for the chat's "Free" provider.
+          free-proxy = pkgs.callPackage ./free-proxy/nix/package.nix { };
         in
         {
           packages = {
             default = contextbtc-site;
-            inherit contextbtc-site hal-wasm;
+            inherit contextbtc-site hal-wasm free-proxy;
           };
 
           devShells.default = pkgs.mkShell {
@@ -88,10 +91,18 @@
         });
     in
     perSystem // {
-      # System-independent overlay: exposes `pkgs.contextbtc-site`.
+      # System-independent overlay: exposes `pkgs.contextbtc-site` and `pkgs.contextbtc-free-proxy`.
       # The consumer's pkgs must provide `hal-wasm` (see packages.hal-wasm).
       overlays.default = final: prev: {
         contextbtc-site = final.callPackage ./nix/package.nix { halWasm = final.hal-wasm; };
+        contextbtc-free-proxy = final.callPackage ./free-proxy/nix/package.nix { };
+      };
+
+      # NixOS service: `services.contextbtc-free-proxy` (see free-proxy/nix/module.nix).
+      nixosModules.free-proxy = { pkgs, ... }: {
+        imports = [ ./free-proxy/nix/module.nix ];
+        services.contextbtc-free-proxy.package = nixpkgs.lib.mkDefault
+          self.packages.${pkgs.stdenv.hostPlatform.system}.free-proxy;
       };
     };
 }
