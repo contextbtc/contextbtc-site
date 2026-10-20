@@ -1,9 +1,11 @@
 {
   description = "ContextBTC Site — SvelteKit static site (Bun) + BDK WASM";
 
+  # Include the hal-wasm submodule (and its nested hal submodule) in the source.
+  # Must be written at top level: Nix ignores it when nested in `inputs = { … }`.
+  inputs.self.submodules = true;
+
   inputs = {
-    # Include the hal-wasm submodule (and its nested hal submodule) in the source.
-    self.submodules = true;
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {
